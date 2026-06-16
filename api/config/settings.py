@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     REDIS_DB: int = Field(description="REDIS 数据库", default=0)
     REDIS_USERNAME: str = Field(default="", description="REDIS 用户名")
 
+    JWT_SECRET_KEY: str = Field(
+        default="change-me-in-production-use-a-random-256-bit-key",
+        description="JWT signing key. Use a random 256-bit key in production.",
+    )
+    JWT_ALGORITHM: str = Field(default="HS256", description="JWT signing algorithm")
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Access token expiry in minutes")
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, description="Refresh token expiry in days")
+
     @property
     def DATABASE_URL(self) -> str:  # noqa: N802
         """构建数据库连接 URL"""

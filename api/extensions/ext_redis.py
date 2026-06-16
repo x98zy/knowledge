@@ -42,6 +42,14 @@ class FastapiRedis:
             self._pool = None
             self._client = None
 
+    async def incr(self, *args, **kwargs) -> int:
+        """Increment a counter in Redis."""
+        return await self.client.incr(*args, **kwargs)
+
+    async def expire(self, *args, **kwargs) -> int:
+        """Set expiration time for a key in Redis."""
+        return await self.client.expire(*args, **kwargs)
+
 
 redis_client = FastapiRedis()
 

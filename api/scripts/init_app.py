@@ -1,5 +1,6 @@
 from api.common.error import CustomException
 from api.common.response import ErrorResponse
+from api.extensions.ext_redis import redis_client
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from starlette.exceptions import HTTPException
@@ -9,7 +10,7 @@ def handler_exception(app: FastAPI) -> None:
     """自定义全局异常处理器"""
 
     @app.exception_handler(CustomException)
-    async def global_exception_handler(request: Request, exc: CustomException):
+    async def global_exception_handler(request: Request, exc: CustomException) -> ErrorResponse:
         return ErrorResponse(
             message=exc.message,
             code=exc.code,
@@ -19,7 +20,7 @@ def handler_exception(app: FastAPI) -> None:
         )
 
     @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException):
+    async def http_exception_handler(request: Request, exc: HTTPException) -> ErrorResponse:
         return ErrorResponse(
             message=exc.detail,
             code=exc.status_code,
@@ -102,8 +103,10 @@ def register_router(app: FastAPI) -> None:
 def register_middleware(app: FastAPI) -> None:
     """注册中间件"""
     # 这里可以添加实际的中间件，例如 CORS、日志记录等
+    from api.middleware.auth import AuthMidllerWare
     from api.middleware.db_context import DBContextMiddleware
 
+    app.add_middleware(AuthMidllerWare)
     app.add_middleware(DBContextMiddleware)
 
 
@@ -111,4 +114,9 @@ def init_app(app: FastAPI) -> FastAPI:
     register_exception_handler(app)
     register_router(app)
     register_middleware(app)
+
+    @app.on_event("shutdown")
+    async def shutdown():
+        await redis_client.close()
+
     return app

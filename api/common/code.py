@@ -43,6 +43,11 @@ class ResponseCode(Enum):
     USER_ALREADY_EXISTS = (1007, "用户已存在")
     USER_NOT_PERMISSION = (1008, "用户权限不足")
 
+    # 自定义认证错误
+    TOKEN_EXPIRED = (1009, "Token 已过期")
+    INVALID_TOKEN = (1010, "无效的 Token")
+    INVALID_TOKEN_TYPE = (1011, "无效的 Token 类型")
+
     # 自定义知识库错误
     KNOWLEDGE_BASE_NOT_FOUND = (2001, "知识库不存在")
     EMBEDDING_MODEL_NOT_FOUND = (2002, "嵌入模型不存在")

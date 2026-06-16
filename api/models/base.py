@@ -8,7 +8,7 @@ class BaseModel(DeclarativeBase):
 
     __abstract__ = True
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid7.create()), comment="主键ID")
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid7()), comment="主键ID")
 
     # 软删除标记: 0-未删除, 1-已删除
     deleted = Column(Integer, default=0, nullable=False, comment="是否删除")
