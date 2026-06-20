@@ -1,15 +1,16 @@
 from dataclasses import dataclass
 
-from api.common.code import ResponseCode
-from api.common.error import CustomException
-from api.common.jwt import decode_token
-from api.config.settings import settings
 from fastapi import Header, Request
 from jose.exceptions import JWTError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-NO_LOGIN_PATHS = ["/login", "/token/refresh", "/register"]
+from common.code import ResponseCode
+from common.error import CustomException
+from common.jwt import decode_token
+from config.settings import settings
+
+NO_LOGIN_PATHS = ["/user/login", "/token/refresh", "/user/register"]
 
 
 @dataclass

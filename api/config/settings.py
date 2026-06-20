@@ -1,9 +1,12 @@
+import json
 import os
 from functools import lru_cache
 
-from api.config.path_config import ENV_DIR
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from common.entites import ModelConfig
+from config.path_config import ENV_DIR
 
 
 class Settings(BaseSettings):
@@ -32,6 +35,29 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Access token expiry in minutes")
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, description="Refresh token expiry in days")
 
+    MILVUS_HOST: str = Field(..., description="MILVUS host地址")
+    MILVUS_PORT: int = Field(description="MILVUS 端口", default=19530)
+    MILVUS_USERNAME: str = Field(default="", description="MILVUS 用户名")
+    MILVUS_PASSWORD: str = Field(default="", description="MILVUS 密码")
+    MILVUS_DB: str = Field(default="knowledge", description="MILVUS 数据库名称")
+
+    # 模型配置列表, 从 env 中读取 JSON 字符串, 格式:
+    # MODELS=[{"type":"embedding","provider":"dashscope","name":"text-embedding-v3","config":"base64编码的JSON"}]
+    MODELS: list[ModelConfig] = Field(default_factory=list, description="模型配置列表")
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_models_json(cls, data: dict) -> dict:
+        """将 env 中的 MODELS JSON 字符串解析为 list[ModelConfig]"""
+        models_raw = data.get("MODELS")
+        if isinstance(models_raw, str):
+            models_raw = models_raw.strip()
+            if models_raw:
+                data["MODELS"] = json.loads(models_raw)
+            else:
+                data["MODELS"] = []
+        return data
+
     @property
     def DATABASE_URL(self) -> str:  # noqa: N802
         """构建数据库连接 URL"""
@@ -50,6 +76,10 @@ class Settings(BaseSettings):
         return (
             f"redis://{self.REDIS_USERNAME}:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         )
+
+    @property
+    def MILVUS_URL(self) -> str:  # noqa: N802
+        return f"https://{self.MILVUS_HOST}:{self.MILVUS_PORT}"
 
 
 @lru_cache(maxsize=1)

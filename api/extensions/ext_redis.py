@@ -1,5 +1,6 @@
 import redis.asyncio as aioredis
-from api.config.settings import settings
+
+from config.settings import settings
 
 REDIS_POOL_KWARGS = {
     "max_connections": 50,
@@ -49,6 +50,18 @@ class FastapiRedis:
     async def expire(self, *args, **kwargs) -> int:
         """Set expiration time for a key in Redis."""
         return await self.client.expire(*args, **kwargs)
+
+    def lock(self, name: str, timeout: int = 20):
+        """Acquire a distributed lock."""
+        return self.client.lock(name, timeout=timeout)
+
+    async def get(self, key: str):
+        """Get value for a key in Redis."""
+        return await self.client.get(key)
+
+    async def set(self, key: str, value: str, *args, **kwargs) -> int:
+        """Set a value for a key in Redis."""
+        return await self.client.set(key, value, *args, **kwargs)
 
 
 redis_client = FastapiRedis()

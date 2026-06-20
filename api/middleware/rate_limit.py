@@ -1,5 +1,6 @@
-from api.extensions.ext_redis import redis_client
 from loguru import logger
+
+from extensions.ext_redis import redis_client
 
 
 class RateLimiter:

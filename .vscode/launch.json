@@ -4,10 +4,12 @@
     {
       "name": "FastAPI: Debug",
       "type": "debugpy",
+      "cwd": "${workspaceFolder}/api",
       "request": "launch",
       "module": "uvicorn",
+      "python": "${workspaceFolder}/api/.venv/Scripts/python.exe",
       "args": [
-        "api.main:app",
+        "main:app",
         "--host", "0.0.0.0",
         "--port", "8000",
         "--reload"

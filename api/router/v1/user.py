@@ -1,11 +1,12 @@
-from api.common.code import ResponseCode
-from api.common.jwt import create_access_token, create_refresh_token, decode_token
-from api.common.response import ErrorResponse, SuccessResponse
-from api.middleware.rate_limit import RateLimiter
-from api.schemas.auth import LoginRequest, RefreshRequest, RefreshTokenResponse, TokenResponse
-from api.schemas.user import RegisterRequest
-from api.service.user_service import UserService
 from fastapi import APIRouter, Request
+
+from common.code import ResponseCode
+from common.jwt import create_access_token, create_refresh_token, decode_token
+from common.response import ErrorResponse, SuccessResponse
+from middleware.rate_limit import RateLimiter
+from schemas.auth import LoginRequest, RefreshRequest, RefreshTokenResponse, TokenResponse
+from schemas.user import RegisterRequest
+from service.user_service import UserService
 
 user_router = APIRouter(prefix="/user", tags=["用户相关接口"])
 

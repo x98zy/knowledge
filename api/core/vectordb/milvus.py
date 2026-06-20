@@ -1,0 +1,116 @@
+from typing import Any
+
+from pymilvus import AsyncMilvusClient
+from pymilvus.milvus_client import IndexParams
+
+from common.entites import Document, MilvusConfig
+from extensions.ext_redis import redis_client
+
+from .base import VectorBase
+from .entites import VectorField
+
+
+class MilvusVector(VectorBase):
+    def __init__(self, config: MilvusConfig) -> None:
+        self.config = config
+        self.collection_name = config.collection_name
+        self._consistency_level = "Session"  # Consistency level for Milvus operations
+        self.client = AsyncMilvusClient(
+            uri=config.url, username=config.username, password=config.password, db_name=config.milvus_db
+        )
+        self._fields: list[str] = []
+
+    async def _load_collection_fields(self, fields: list[str] | None = None):
+        if fields is None:
+            # Load collection fields from remote server
+            collection_info = await self.client.describe_collection(self.collection_name)
+            fields = [field["name"] for field in collection_info["fields"]]
+        # Since primary field is auto-id, no need to track it
+        self._fields = [f for f in fields if f != VectorField.ID.value]
+
+    async def create_collection(self, embeddings: list) -> None:
+        """创建向量集合"""
+        lock_name = f"vector_indexing_lock_{self.collection_name}"
+        async with redis_client.lock(lock_name, timeout=20):
+            collection_exist_cache_key = f"vector_indexing_{self.collection_name}"
+            if await redis_client.get(collection_exist_cache_key):
+                return
+            if not await self.client.has_collection(self.collection_name):
+                from pymilvus import CollectionSchema, DataType, FieldSchema, Function, FunctionType  # type: ignore
+                from pymilvus.orm.types import infer_dtype_bydata
+
+                dim = len(embeddings[0])
+                fields = []
+                fields.append(FieldSchema(VectorField.METADATA.value, DataType.JSON, max_length=65_535))
+                # 全文检索在设置文本字段的时候需要开启分析器，分析器需要配置分词器和过滤器，将一段长文本拆分成多个词token, 用于后续的检索
+                # 分词器只有一个，过滤器可以配置多个，例如stop_worlds去除停用词，stemmer对单词进行根词提取，lowercase对单词进行小写转换
+                # 中文的分词器可以使用jieba分词器
+                content_field_kwargs: dict[str, Any] = {
+                    "max_length": 65_535,
+                    "enable_analyzer": True,
+                }
+                # filters: ["cncharonly"] — 在分词之后应用过滤器，只保留中文字符，过滤掉数字、英文字母、标点符号等无关 token
+                content_field_kwargs["analyzer_params"] = {
+                    "tokenizer": "jieba",
+                    "filters": ["cncharonly"],
+                }
+                fields.append(FieldSchema(VectorField.CONTENT.value, DataType.VARCHAR, **content_field_kwargs))
+                fields.append(FieldSchema(VectorField.ID.value, DataType.VARCHAR, is_primary=True, max_length=50))
+                fields.append(FieldSchema(VectorField.VECTOR.value, infer_dtype_bydata(embeddings[0]), dim=dim))
+                fields.append(FieldSchema(VectorField.SPARSE_VECTOR.value, DataType.SPARSE_FLOAT_VECTOR))
+                schema = CollectionSchema(fields)
+                # 添加BM25函数，用于全文检索,当插入文本时，会自动调用该函数，将文本转换为BM25向量，用于后续的检索
+                bm25_function = Function(
+                    name="text_bm25_emb",
+                    input_field_names=[VectorField.CONTENT.value],
+                    output_field_names=[VectorField.SPARSE_VECTOR.value],
+                    function_type=FunctionType.BM25,
+                )
+                schema.add_function(bm25_function)
+
+                # 添加索引
+                index_params = {"metric_type": "IP", "index_type": "HNSW", "params": {"M": 8, "efConstruction": 64}}
+                index_params_obj = IndexParams()
+                index_params_obj.add_index(field_name=VectorField.VECTOR.value, **index_params)
+                index_params_obj.add_index(
+                    field_name=VectorField.SPARSE_VECTOR.value, index_type="AUTOINDEX", metric_type="BM25"
+                )
+                await self.client.create_collection(
+                    collection_name=self.collection_name,
+                    schema=schema,
+                    index_params=index_params_obj,
+                    consistency_level=self._consistency_level,
+                )
+            await redis_client.set(collection_exist_cache_key, 1, ex=3600)
+
+    async def create(self, documents: list[Document], **kwargs) -> list[str]:
+        """创建文档向量, 返回向量ID"""
+        raise NotImplementedError
+
+    async def vector_search(self, query: str) -> list[Document]:
+        """向量搜索"""
+        raise NotImplementedError
+
+    async def full_text_search(self, query: str) -> list[Document]:
+        """全文本搜索"""
+        raise NotImplementedError
+
+    async def delete(self, document_ids: list[str]) -> None:
+        """删除文档向量"""
+        raise NotImplementedError
+
+    async def drop_collection(self, collection_name: str) -> None:
+        """删除向量集合"""
+        raise NotImplementedError
+
+    async def embedding(self, text: list[str]) -> list[list[float]]:
+        """文本文本的向量表示"""
+        raise NotImplementedError
+
+    async def update_metadata(self, document_ids: list[str], metadata: dict) -> None:
+        """更新文档元数据"""
+        raise NotImplementedError
+
+    async def update_content_by_id(self, document_id: str, content: str) -> None:
+        """更新文档内容"""
+        raise NotImplementedError

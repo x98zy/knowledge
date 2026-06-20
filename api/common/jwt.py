@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
-from api.config.settings import settings
 from jose import jwt
+
+from config.settings import settings
 
 
 def create_access_token(user_id: str) -> str:

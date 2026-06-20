@@ -1,12 +1,13 @@
 from contextvars import ContextVar, Token
 
-from api.config.settings import settings
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+
+from config.settings import settings
 
 db_engine: AsyncEngine = create_async_engine(
     settings.DATABASE_URL,

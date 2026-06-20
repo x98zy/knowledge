@@ -1,7 +1,8 @@
 import re
 
-from api.common.weak_passwords import WEAK_PASSWORDS
 from pydantic import BaseModel, field_validator, model_validator
+
+from common.weak_passwords import WEAK_PASSWORDS
 
 
 class RegisterRequest(BaseModel):

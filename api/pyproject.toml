@@ -7,10 +7,13 @@ requires-python = ">=3.10"
 dependencies = [
     "asyncmy>=0.2.11",
     "fastapi>=0.136.1",
+    "jieba>=0.42.1",
     "jwt>=1.4.0",
     "loguru>=0.7.3",
+    "openai>=2.43.0",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
+    "pymilvus==3.0.0",
     "python-jose[cryptography]>=3.5.0",
     "redis[hiredis]>=8.0.0",
     "sqlalchemy>=2.0.49",

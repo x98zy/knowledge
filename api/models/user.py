@@ -1,6 +1,7 @@
-from api.models.base import BaseModel
 from sqlalchemy import Column, String
 from sqlalchemy.orm import Mapped
+
+from models.base import BaseModel
 
 
 class User(BaseModel):

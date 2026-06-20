@@ -1,7 +1,8 @@
-from api.config.settings import settings
-from api.extensions.ext_db import async_session_factory, context_db_session, db
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from config.settings import settings
+from extensions.ext_db import async_session_factory, context_db_session, db
 
 NO_DB_CONTEXT_PATHS = ["/docs", "/openapi.json"]
 

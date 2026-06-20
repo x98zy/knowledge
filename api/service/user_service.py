@@ -1,9 +1,10 @@
-from api.common.code import ResponseCode
-from api.common.error import CustomException
-from api.common.password import generate_salt, hash_password, verify_password
-from api.extensions.ext_db import db
-from api.models.user import User
 from sqlalchemy import select
+
+from common.code import ResponseCode
+from common.error import CustomException
+from common.password import generate_salt, hash_password, verify_password
+from extensions.ext_db import db
+from models.user import User
 
 
 class UserService:

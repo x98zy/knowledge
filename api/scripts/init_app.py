@@ -1,9 +1,10 @@
-from api.common.error import CustomException
-from api.common.response import ErrorResponse
-from api.extensions.ext_redis import redis_client
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from starlette.exceptions import HTTPException
+
+from common.error import CustomException
+from common.response import ErrorResponse
+from extensions.ext_redis import redis_client
 
 
 def handler_exception(app: FastAPI) -> None:
@@ -93,7 +94,7 @@ def register_exception_handler(app: FastAPI) -> None:
 
 def register_router(app: FastAPI) -> None:
     """注册路由"""
-    from api.router import knowledge_router, search_router, user_router
+    from router import knowledge_router, search_router, user_router
 
     app.include_router(knowledge_router)
     app.include_router(search_router)
@@ -102,9 +103,18 @@ def register_router(app: FastAPI) -> None:
 
 def register_middleware(app: FastAPI) -> None:
     """注册中间件"""
-    # 这里可以添加实际的中间件，例如 CORS、日志记录等
-    from api.middleware.auth import AuthMidllerWare
-    from api.middleware.db_context import DBContextMiddleware
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    from middleware.auth import AuthMidllerWare
+    from middleware.db_context import DBContextMiddleware
 
     app.add_middleware(AuthMidllerWare)
     app.add_middleware(DBContextMiddleware)
