@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # MODELS=[{"type":"embedding","provider":"dashscope","name":"text-embedding-v3","config":"base64编码的JSON"}]
     MODELS: list[ModelConfig] = Field(default_factory=list, description="模型配置列表")
 
+    ALIYUN_OSS_ACCESS_KEY: str = Field(..., description="阿里云 OSS 访问密钥")
+    ALIYUN_OSS_ACCESS_KEY_SECRET: str = Field(..., description="阿里云 OSS 访问密钥")
+    ALIYUN_OSS_BUCKET: str = Field(..., description="阿里云 OSS 桶名")
+    ALIYUN_OSS_REGION: str = Field(..., description="阿里云 OSS 区域")
+    ALIYUN_OSS_ENDPOINT: str = Field(..., description="阿里云 OSS 端点")
+
     @model_validator(mode="before")
     @classmethod
     def parse_models_json(cls, data: dict) -> dict:
@@ -69,6 +75,9 @@ class Settings(BaseSettings):
         return {
             "docs_url": "/docs",
             "root_path": "/api/v1",
+            "swagger_ui_parameters": {
+                "persistAuthorization": True,  # 刷新页面后保留 Token
+            },
         }
 
     @property

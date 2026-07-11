@@ -53,6 +53,7 @@ class ResponseCode(Enum):
     EMBEDDING_MODEL_NOT_FOUND = (2002, "嵌入模型不存在")
     FILE_TYPE_NOT_SUPPORTED = (2003, "不支持的文件类型")
     FILE_TOO_LARGE = (2004, "文件过大")
+    EMBEDDING_MODEL_INVALID = (2005, "无效的嵌入模型")
 
     def __init__(self, code: int, message: str):
         self._code = code

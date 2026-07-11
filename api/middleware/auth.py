@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
-from fastapi import Header, Request
+from fastapi import Request, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose.exceptions import JWTError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -10,7 +11,9 @@ from common.error import CustomException
 from common.jwt import decode_token
 from config.settings import settings
 
-NO_LOGIN_PATHS = ["/user/login", "/token/refresh", "/user/register"]
+NO_LOGIN_PATHS = ["/user/login", "/token/refresh", "/user/register", "/docs", "/docs/oauth2-redirect", "/openapi.json"]
+
+_bearer_scheme = HTTPBearer()
 
 
 @dataclass
@@ -20,28 +23,16 @@ class CurrentUser:
     user_id: str
 
 
-def get_current_user(authorization: str | None = Header(None)) -> CurrentUser:
-    """Extract and validate JWT token from the Authorization header.
-
-    Expects: Authorization: Bearer <token>
-    Returns: CurrentUser with user_id
-    Raises: CustomException(401) on missing, invalid, or expired token
-    """
-    if not authorization:
+def _validate_token(token: str) -> CurrentUser:
+    """校验 JWT token 字符串, 返回 CurrentUser."""
+    if not token or not token.strip():
         raise CustomException(
             message="未提供认证凭据",
             code=ResponseCode.UNAUTHORIZED.code,
             status_code=401,
         )
 
-    if not str(authorization).strip():
-        raise CustomException(
-            message="未提供认证凭据",
-            code=ResponseCode.UNAUTHORIZED.code,
-            status_code=401,
-        )
-
-    parts = authorization.split()
+    parts = token.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
         raise CustomException(
             message="无效的认证格式",
@@ -49,16 +40,14 @@ def get_current_user(authorization: str | None = Header(None)) -> CurrentUser:
             status_code=401,
         )
 
-    token = parts[1]
-
     try:
-        payload = decode_token(token)
-    except JWTError:
-        raise CustomException(  # noqa: B904
+        payload = decode_token(parts[1])
+    except JWTError as err:
+        raise CustomException(
             message="无效的 Token 格式",
             code=ResponseCode.UNAUTHORIZED.code,
             status_code=401,
-        )
+        ) from err
 
     if payload.get("type") != "access":
         raise CustomException(
@@ -78,19 +67,21 @@ def get_current_user(authorization: str | None = Header(None)) -> CurrentUser:
     return CurrentUser(user_id=user_id)
 
 
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Security(_bearer_scheme),
+) -> CurrentUser:
+    """接口层依赖注入 — 从 Swagger Authorize 自动注入 Authorization header."""
+    return _validate_token(f"Bearer {credentials.credentials}")
+
+
 class AuthMidllerWare(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         config = settings.FASTAPI_CONFIG
         real_path = request.url.path.replace(config.get("root_path", ""), "")
         if real_path not in NO_LOGIN_PATHS:
             try:
-                current_user = get_current_user(request.headers.get("Authorization"))
-                if not current_user:
-                    raise CustomException(
-                        message="未提供认证凭据",
-                        code=ResponseCode.UNAUTHORIZED.code,
-                        status_code=401,
-                    )
+                auth_header = request.headers.get("Authorization", "")
+                current_user = _validate_token(auth_header)
                 request.state.current_user = current_user
             except CustomException:
                 return JSONResponse(

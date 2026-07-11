@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
+from fastapi.openapi.utils import get_openapi
 from starlette.exceptions import HTTPException
 
 from common.error import CustomException
@@ -120,10 +121,54 @@ def register_middleware(app: FastAPI) -> None:
     app.add_middleware(DBContextMiddleware)
 
 
+def _custom_openapi(app: FastAPI) -> dict:
+    """自定义 OpenAPI schema, 为所有接口添加全局 Bearer 安全方案.
+
+    这样 Swagger UI 的 "Authorize" 按钮才会在请求时附加
+    Authorization: Bearer <token> 请求头.
+    """
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    # 注册 Bearer 安全方案
+    openapi_schema.setdefault("components", {})["securitySchemes"] = {
+        "Bearer": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "输入登录接口返回的 access_token",
+        }
+    }
+
+    # 全局 security 要求 — Swagger UI 会对所有接口自动附加 Authorization 头
+    openapi_schema["security"] = [{"Bearer": []}]
+
+    # 免登录接口移除 security 要求, 否则 Swagger 也会给登录接口加 Authorization 头
+    no_auth_paths = ["/user/login", "/user/register", "/user/token/refresh"]
+    for path, methods in openapi_schema.get("paths", {}).items():
+        if path in no_auth_paths:
+            for method_item in methods.values():
+                if isinstance(method_item, dict):
+                    method_item["security"] = []
+
+    app.openapi_schema = openapi_schema
+    return openapi_schema
+
+
 def init_app(app: FastAPI) -> FastAPI:
     register_exception_handler(app)
     register_router(app)
     register_middleware(app)
+
+    # 替换默认的 openapi() 方法，注入全局 Bearer 安全方案
+    app.openapi = lambda: _custom_openapi(app)
 
     @app.on_event("shutdown")
     async def shutdown():

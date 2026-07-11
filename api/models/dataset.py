@@ -1,7 +1,8 @@
-from api.common.entites import VectorProvider
-from api.models.base import BaseModel
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import Mapped
+
+from common.entites import VectorProvider
+from models.base import BaseModel
 
 
 class Dataset(BaseModel):

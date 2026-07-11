@@ -73,3 +73,16 @@ class ModelConfig(BaseModel):
         if data.get("config"):
             data["config"] = json.loads(base64.b64decode(data["config"]).decode("utf-8"))
         return data
+
+
+class EmbeddingConfig(BaseModel):
+    """嵌入模型配置"""
+
+    model: str = Field(description="嵌入模型名称")
+    provider: str = Field(description="嵌入模型供应商方")
+    api_key: str = Field(description="API密钥")
+    base_url: str = Field(description="API基础URL")
+
+
+class AuthHeader(BaseModel):
+    authorization: str = Field(description="Authorization 头")
