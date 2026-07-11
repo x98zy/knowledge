@@ -1,10 +1,10 @@
+from datetime import datetime
+
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import Mapped
 
 from common.entites import VectorProvider
 from models.base import BaseModel
-
-from datetime import datetime
 
 
 class Dataset(BaseModel):
