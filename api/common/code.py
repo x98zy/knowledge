@@ -14,6 +14,7 @@ class ResponseCode(Enum):
     ERROR = (-1, "请求错误")
     BAD_REQUEST = (400, "参数错误")
     UNAUTHORIZED = (401, "未授权")
+    AUTHENTICATION_TIMEOUT = (419, "登录凭证过期")
     FORBIDDEN = (403, "访问受限")
     NOT_FOUND = (404, "资源不存在")
     BAD_METHOD = (405, "不支持的请求方法")

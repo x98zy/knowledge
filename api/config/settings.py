@@ -32,7 +32,7 @@ class Settings(BaseSettings):
         description="JWT signing key. Use a random 256-bit key in production.",
     )
     JWT_ALGORITHM: str = Field(default="HS256", description="JWT signing algorithm")
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Access token expiry in minutes")
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=24 * 60, description="Access token expiry in minutes")
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, description="Refresh token expiry in days")
 
     MILVUS_HOST: str = Field(..., description="MILVUS host地址")

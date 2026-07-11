@@ -27,3 +27,10 @@ class RefreshTokenResponse(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class ChangePasswordRequest(BaseModel):
+    """Change password request body."""
+
+    old_password: str = Field(..., description="Old password")
+    new_password: str = Field(..., description="New password")

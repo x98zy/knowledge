@@ -10,6 +10,7 @@ from common.code import ResponseCode
 from common.entites import ModelConfig, ModelType
 from common.error import CustomException
 from config.settings import settings
+from core.utils.page import Page, PaginationInput, paginate
 from extensions.ext_db import db
 from extensions.ext_storage import storage
 from models.dataset import Dataset
@@ -21,9 +22,21 @@ class KnowledgeService:
     """知识服务"""
 
     @classmethod
+    async def get_knowledge_list(cls, page: int, page_size: int, keyword: str | None = None) -> Page[Dataset]:
+        """获取知识库列表接口"""
+        query = select(Dataset).order_by(Dataset.id.desc())
+        if keyword:
+            query = query.where(Dataset.name.contains(keyword) | Dataset.description.contains(keyword))
+        page_info = await paginate(
+            query,
+            PaginationInput(page=page, page_size=page_size),
+        )
+        return page_info
+
+    @classmethod
     async def create_knowledge(
-        cls, name: str, description: str, files: list[str], embedding_model: str, embedding_provider: str, user_id: str
-    ) -> dict:
+        cls, name: str, description: str, embedding_model: str, embedding_provider: str, user_id: str
+    ) -> Dataset:
         """创建知识库接口"""
         # 检查embedding 模型是否存在
         model = next(

@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Body, Depends, UploadFile
+from fastapi import APIRouter, Body, Depends, Query, UploadFile
 
 from common.code import ResponseCode
 from common.response import SuccessResponse
 from middleware.auth import CurrentUser, get_current_user
-from router.v1.entites.dataset import CreateDatasetRequest
+from router.v1.entites.dataset import CreateDatasetRequest, KnowledgeListRequest
 from schemas.knowledge import EmbeddingListResponse, EmbeddingModel
 from service.knowledge import KnowledgeService
 
@@ -36,19 +36,31 @@ async def get_embedding_models():
     - dict: 包含嵌入模型列表的字典
     """
     embedding_modles = await KnowledgeService.get_embedding_models()
-    return EmbeddingListResponse(
-        models=[EmbeddingModel(model=model.name, provider=model.provider) for model in embedding_modles]
+    return SuccessResponse(
+        message="获取嵌入模型列表成功",
+        data=EmbeddingListResponse(
+            models=[EmbeddingModel(model=model.name, provider=model.provider) for model in embedding_modles]
+        ),
     )
 
 
 @knowledge_router.post("/create", summary="创建知识库")
-async def create_knowledge(req: CreateDatasetRequest = Body(...)):
+async def create_knowledge(
+    req: CreateDatasetRequest = Body(...), current_user: CurrentUser = Depends(get_current_user)
+):
     """创建知识库接口
 
     返回:
     - dict: 包含创建结果的字典
     """
-    return {"message": "知识库创建成功"}
+    record = await KnowledgeService.create_knowledge(
+        name=req.name,
+        description=req.description,
+        embedding_model=req.embedding_model,
+        embedding_provider=req.embedding_provider,
+        user_id=current_user.user_id,
+    )
+    return SuccessResponse(message="知识库创建成功", data={"id": record.id, "name": record.name}, status_code=201)
 
 
 @knowledge_router.post("/upload_file", summary="上传文件到阿里云 OSS")
@@ -83,3 +95,9 @@ async def upload_file(
         },
         status_code=201,
     )
+
+
+@knowledge_router.get("/list", summary="获取知识库列表")
+async def get_knowledge_list(req: KnowledgeListRequest = Query(..., description="分页参数")):
+    page_info = await KnowledgeService.get_knowledge_list(page=req.page, page_size=req.page_size, keyword=req.keyword)
+    return SuccessResponse(message="获取知识库列表成功", data=page_info.model_dump())

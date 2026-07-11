@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from fastapi import Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -11,7 +12,7 @@ from common.error import CustomException
 from common.jwt import decode_token
 from config.settings import settings
 
-NO_LOGIN_PATHS = ["/user/login", "/token/refresh", "/user/register", "/docs", "/docs/oauth2-redirect", "/openapi.json"]
+NO_LOGIN_PATHS = ["/user/login", "/user/token/refresh", "/user/register", "/docs", "/docs/oauth2-redirect", "/openapi.json"]
 
 _bearer_scheme = HTTPBearer()
 
@@ -63,6 +64,14 @@ def _validate_token(token: str) -> CurrentUser:
             code=ResponseCode.UNAUTHORIZED.code,
             status_code=401,
         )
+    delta = payload.get("exp")
+    # 判断登录凭证是否过期
+    if int((datetime.now(timezone.utc)).timestamp()) > int(delta):
+        raise CustomException(
+            message="登录凭证已过期",
+            code=ResponseCode.AUTHENTICATION_TIMEOUT.code,
+            status_code=401,
+        )
 
     return CurrentUser(user_id=user_id)
 
@@ -76,6 +85,8 @@ def get_current_user(
 
 class AuthMidllerWare(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        if request.method == 'OPTIONS':
+            return await call_next(request)
         config = settings.FASTAPI_CONFIG
         real_path = request.url.path.replace(config.get("root_path", ""), "")
         if real_path not in NO_LOGIN_PATHS:

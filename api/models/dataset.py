@@ -4,6 +4,8 @@ from sqlalchemy.orm import Mapped
 from common.entites import VectorProvider
 from models.base import BaseModel
 
+from datetime import datetime
+
 
 class Dataset(BaseModel):
     __tablename__ = "datasets"
@@ -23,6 +25,18 @@ class Dataset(BaseModel):
     @property
     def milvus_collection_name(self) -> str:
         return "Vector_Service" + self.collection_name.replace(" ", "_").replace("-", "_")
+
+    @property
+    def dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "embedding_model": self.embedding_model,
+            "embedding_provider": self.embedding_provider,
+            "created_time": datetime.strftime(self.created_time, "%Y-%m-%d %H:%M:%S") if self.created_time else None,
+            "updated_time": datetime.strftime(self.updated_time, "%Y-%m-%d %H:%M:%S") if self.updated_time else None,
+        }
 
 
 class ProcessRule(BaseModel):
