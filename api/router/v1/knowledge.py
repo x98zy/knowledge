@@ -98,6 +98,12 @@ async def upload_file(
 
 
 @knowledge_router.get("/list", summary="获取知识库列表")
-async def get_knowledge_list(req: KnowledgeListRequest = Query(..., description="分页参数")):
-    page_info = await KnowledgeService.get_knowledge_list(page=req.page, page_size=req.page_size, keyword=req.keyword)
+async def get_knowledge_list(
+    req: KnowledgeListRequest = Query(..., description="分页参数"),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """获取知识库列表接口"""
+    page_info = await KnowledgeService.get_knowledge_list(
+        user_id=current_user.user_id, page=req.page, page_size=req.page_size, keyword=req.keyword
+    )
     return SuccessResponse(message="获取知识库列表成功", data=page_info.model_dump())

@@ -63,6 +63,10 @@ class FastapiRedis:
         """Set a value for a key in Redis."""
         return await self.client.set(key, value, *args, **kwargs)
 
+    async def delete(self, key: str) -> int:
+        """Delete a key from Redis."""
+        return await self.client.delete(key)
+
 
 redis_client = FastapiRedis()
 

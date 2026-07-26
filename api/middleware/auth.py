@@ -8,11 +8,21 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from common.code import ResponseCode
+from common.const import USER_HAS_LOGIN_CACHE_KEY, USER_LOGIN_CACHE_KEY
 from common.error import CustomException
 from common.jwt import decode_token
 from config.settings import settings
+from extensions.ext_log import logger
+from extensions.ext_redis import redis_client
 
-NO_LOGIN_PATHS = ["/user/login", "/user/token/refresh", "/user/register", "/docs", "/docs/oauth2-redirect", "/openapi.json"]
+NO_LOGIN_PATHS = [
+    "/user/login",
+    "/user/token/refresh",
+    "/user/register",
+    "/docs",
+    "/docs/oauth2-redirect",
+    "/openapi.json",
+]
 
 _bearer_scheme = HTTPBearer()
 
@@ -85,19 +95,49 @@ def get_current_user(
 
 class AuthMidllerWare(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.method == 'OPTIONS':
+        if request.method == "OPTIONS":
             return await call_next(request)
         config = settings.FASTAPI_CONFIG
         real_path = request.url.path.replace(config.get("root_path", ""), "")
         if real_path not in NO_LOGIN_PATHS:
             try:
                 auth_header = request.headers.get("Authorization", "")
+                # 先从token中获取用户信息
                 current_user = _validate_token(auth_header)
                 request.state.current_user = current_user
-            except CustomException:
+                has_login_cache = await redis_client.get(USER_HAS_LOGIN_CACHE_KEY.format(user_id=current_user.user_id))
+                # 判断用户是否在不同的设备客户端登录，如果重复登录则把前一个客户端挤掉
+                if has_login_cache:
+                    current_access_token = await redis_client.get(
+                        USER_LOGIN_CACHE_KEY.format(user_id=current_user.user_id)
+                    )
+                    if current_access_token and current_access_token != auth_header.split(" ")[1]:
+                        logger.info(f"用户 {current_user.user_id} 在不同设备登录，将退出先前登录用户")
+                        await redis_client.delete(USER_HAS_LOGIN_CACHE_KEY.format(user_id=current_user.user_id))
+                        return JSONResponse(
+                            content={
+                                "message": "您的账号已在其他设备登录",
+                                "code": ResponseCode.UNAUTHORIZED.code,
+                                "data": None,
+                                "success": False,
+                            },
+                            status_code=401,
+                        )
+                current_token = await redis_client.get(USER_LOGIN_CACHE_KEY.format(user_id=current_user.user_id))
+                if not current_token or current_token != auth_header.split(" ")[1]:
+                    return JSONResponse(
+                        content={
+                            "message": "登录凭证已失效，请重新登录",
+                            "code": ResponseCode.UNAUTHORIZED.code,
+                            "data": None,
+                            "success": False,
+                        },
+                        status_code=401,
+                    )
+            except CustomException as e:
                 return JSONResponse(
                     content={
-                        "message": "无效的登录凭证",
+                        "message": str(e.message),
                         "code": ResponseCode.UNAUTHORIZED.code,
                         "data": None,
                         "success": False,

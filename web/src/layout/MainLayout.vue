@@ -76,7 +76,7 @@ import {
   ArrowDown,
   SwitchButton,
 } from '@element-plus/icons-vue'
-import { getUserProfile } from '../api'
+import { getUserProfile, logout } from '../api'
 
 const route = useRoute()
 const isCollapse = ref(false)
@@ -96,11 +96,16 @@ async function fetchAvatar() {
   }
 }
 
-function handleLogout() {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('username')
-  window.location.hash = '#/login'
+async function handleLogout() {
+  try {
+    await logout()
+  } catch {
+  } finally {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('username')
+    window.location.hash = '#/login'
+  }
 }
 
 onMounted(fetchAvatar)

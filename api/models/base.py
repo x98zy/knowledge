@@ -22,5 +22,7 @@ class BaseModel(DeclarativeBase):
         nullable=False,
         comment="修改时间",
     )
-    created_by = Column(String(64), default="", nullable=False, comment="创建者")
-    updated_by = Column(String(64), default="", nullable=False, comment="修改者")
+    created_by = Column(String(64), default="", nullable=True, comment="创建者")
+    updated_by = Column(String(64), default="", nullable=True, comment="修改者")
+    created_by_id = Column(String(36), default="", nullable=True, comment="创建者ID", index=True)
+    updated_by_id = Column(String(36), default="", nullable=True, comment="修改者ID", index=True)

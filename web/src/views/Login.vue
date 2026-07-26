@@ -72,9 +72,7 @@ const onSubmit = async () => {
 
   try {
     const res = await login(username.value, password.value)
-    // Backend returns { access_token, refresh_token, token_type } directly
-    localStorage.setItem('access_token', res.access_token)
-    localStorage.setItem('refresh_token', res.refresh_token)
+    localStorage.setItem('access_token', res.data.access_token)
     localStorage.setItem('username', username.value)
     success.value = '登录成功，正在跳转...'
     setTimeout(() => {

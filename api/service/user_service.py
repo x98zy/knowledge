@@ -8,9 +8,13 @@ from fastapi import UploadFile
 from sqlalchemy import select
 
 from common.code import ResponseCode
+from common.const import USER_HAS_LOGIN_CACHE_KEY, USER_LOGIN_CACHE_KEY
 from common.error import CustomException
+from common.jwt import create_access_token
 from common.password import generate_salt, hash_password, verify_password
+from config.settings import settings
 from extensions.ext_db import db
+from extensions.ext_redis import redis_client
 from extensions.ext_storage import storage
 from models.document import UploadFile as UploadFileModel
 from models.user import User
@@ -18,6 +22,16 @@ from models.user import User
 
 class UserService:
     """用户服务类"""
+
+    @classmethod
+    async def logout(cls, user_id: str):
+        """用户退出登录
+
+        Args:
+            user_id: 用户 ID
+        """
+        await redis_client.delete(USER_LOGIN_CACHE_KEY.format(user_id=user_id))
+        await redis_client.delete(USER_HAS_LOGIN_CACHE_KEY.format(user_id=user_id))
 
     @classmethod
     async def change_password(cls, user_id: str, old_password: str, new_password: str):
@@ -201,4 +215,16 @@ class UserService:
                 status_code=401,
             )
         user.last_login_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        return user
+        access_token = create_access_token(user.id)
+        exist_token = await redis_client.get(USER_LOGIN_CACHE_KEY.format(user_id=user.id))
+        print(4444444, exist_token)
+        # 如果用户已经登录过设置一个缓存挤掉先前登录的用户
+        if exist_token:
+            await redis_client.set(
+                USER_HAS_LOGIN_CACHE_KEY.format(user_id=user.id), 1, ex=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+        # 设置新的登录缓存
+        await redis_client.set(
+            USER_LOGIN_CACHE_KEY.format(user_id=user.id), access_token, ex=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        )
+        return access_token

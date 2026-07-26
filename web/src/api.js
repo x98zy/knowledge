@@ -8,18 +8,6 @@ const api = axios.create({
   },
 })
 
-let isRefreshing = false
-let refreshSubscribers = []
-
-function onTokenRefreshed(newToken) {
-  refreshSubscribers.forEach((callback) => callback(newToken))
-  refreshSubscribers = []
-}
-
-function addRefreshSubscriber(callback) {
-  refreshSubscribers.push(callback)
-}
-
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
   if (token) {
@@ -30,48 +18,26 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        return new Promise((resolve) => {
-          addRefreshSubscriber((newToken) => {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`
-            resolve(api(originalRequest))
-          })
-        })
-      }
-
-      originalRequest._retry = true
-      isRefreshing = true
-
-      try {
-        const refreshToken = localStorage.getItem('refresh_token')
-        if (!refreshToken) {
-          throw new Error('No refresh token available')
-        }
-        const res = await api.post('/user/token/refresh', { refresh_token: refreshToken })
-        const { access_token } = res.data
-        localStorage.setItem('access_token', access_token)
-        originalRequest.headers.Authorization = `Bearer ${access_token}`
-        onTokenRefreshed(access_token)
-        return api(originalRequest)
-      } catch (refreshError) {
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('username')
-        ElMessage.warning('登录已失效，请重新登录')
-        setTimeout(() => {
-          window.location.href = '/#/login'
-        }, 1500)
-        return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
-      }
+  (error) => {
+    if (error.response?.status === 401) {
+      handle401Error(error)
     }
     return Promise.reject(error)
   }
 )
+
+function handle401Error(error) {
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+  localStorage.removeItem('username')
+  const message = error.response?.data?.message
+  if (message) {
+    ElMessage.warning(message)
+  }
+  setTimeout(() => {
+    window.location.href = '/#/login'
+  }, 1500)
+}
 
 export default api
 
@@ -82,11 +48,6 @@ export async function login(username, password) {
 
 export async function register({ username, email, password, confirm_password }) {
   const res = await api.post('/user/register', { username, email, password, confirm_password })
-  return res.data
-}
-
-export async function refreshToken(refresh_token) {
-  const res = await api.post('/user/token/refresh', { refresh_token })
   return res.data
 }
 
@@ -112,9 +73,12 @@ export async function changePassword(oldPassword, newPassword) {
   return res.data
 }
 
+export async function logout() {
+  const res = await api.post('/user/logout')
+  return res.data
+}
+
 // ===================== 知识库 =====================
-// Note: all API functions return res.data (the parsed JSON body),
-// consistent with login/register above.
 
 export async function getKnowledgeList(params) {
   const res = await api.get('/knowledge/list', { params })

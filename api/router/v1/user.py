@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, Request, UploadFile
 
 from common.code import ResponseCode
-from common.jwt import create_access_token, create_refresh_token, decode_token
 from common.response import ErrorResponse, SuccessResponse
 from middleware.auth import CurrentUser, get_current_user
 from middleware.rate_limit import RateLimiter
-from schemas.auth import LoginRequest, RefreshRequest, RefreshTokenResponse, TokenResponse, ChangePasswordRequest
+from schemas.auth import ChangePasswordRequest, LoginRequest
 from schemas.user import RegisterRequest
 from service.user_service import UserService
 
@@ -69,44 +68,13 @@ async def login(req: LoginRequest):
     返回:
     - TokenResponse: 包含 access_token, refresh_token, token_type
     """
-    user = await UserService.login(username=req.username, password=req.password)
-    access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
+    access_token = await UserService.login(username=req.username, password=req.password)
+    return SuccessResponse(
+        message="登录成功",
+        data={
+            "access_token": access_token,
+        },
     )
-
-
-@user_router.post("/token/refresh", summary="刷新 Token")
-async def refresh_token(req: RefreshRequest):
-    """刷新 access token
-
-    参数:
-    - req (RefreshRequest): 刷新请求体, 包含 refresh_token
-
-    返回:
-    - RefreshTokenResponse: 包含新的 access_token
-    """
-    try:
-        payload = decode_token(req.refresh_token)
-    except Exception:
-        return ErrorResponse(
-            message="无效的 Refresh Token",
-            code=ResponseCode.INVALID_TOKEN.code,
-            status_code=401,
-        )
-
-    if payload.get("type") != "refresh":
-        return ErrorResponse(
-            message="无效的 Token 类型",
-            code=ResponseCode.INVALID_TOKEN_TYPE.code,
-            status_code=401,
-        )
-
-    user_id = payload.get("sub")
-    new_access_token = create_access_token(user_id)
-    return RefreshTokenResponse(access_token=new_access_token)
 
 
 @user_router.post("/upload_avator", summary="上传用户头像")
@@ -157,3 +125,17 @@ async def change_password(
         new_password=new_password,
     )
     return SuccessResponse(message="密码修改成功")
+
+
+@user_router.post("/logout", summary="用户退出登录")
+async def logout(current_user: CurrentUser = Depends(get_current_user)):
+    """用户退出登录接口
+
+    参数:
+    - current_user (CurrentUser): 当前用户
+
+    返回:
+    - SuccessResponse: 退出成功的响应
+    """
+    await UserService.logout(current_user.user_id)
+    return SuccessResponse(message="退出登录成功")

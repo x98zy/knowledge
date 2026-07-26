@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     ALIYUN_OSS_BUCKET: str = Field(..., description="阿里云 OSS 桶名")
     ALIYUN_OSS_REGION: str = Field(..., description="阿里云 OSS 区域")
     ALIYUN_OSS_ENDPOINT: str = Field(..., description="阿里云 OSS 端点")
+    INDEXING_MAX_SEGMENTATION_TOKENS_LENGTH: int = Field(description="索引最大分段 token 长度", default=4000)
+    CHILD_CHUNKS_PREVIEW_NUMBER: int = Field(description="子文档预览数量", default=50)
+    QA_MODEL_NAME: str = Field(..., description="Q-A问答模型名称")
 
     @model_validator(mode="before")
     @classmethod

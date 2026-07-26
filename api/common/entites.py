@@ -1,8 +1,13 @@
 import base64
 import json
-from enum import Enum
+from enum import Enum, StrEnum, auto
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
+
+
+class UploadFile(BaseModel):
+    file_key: str = Field(description="OSS文件键")
 
 
 class ChildDocument(BaseModel):
@@ -19,25 +24,34 @@ class ChildDocument(BaseModel):
 
 
 class Document(BaseModel):
-    page_content: str = Field(description="文档内容")
-    metadata: dict = Field(default_factory=dict, description="文档元数据")
-    score: float = Field(default=0.0, description="文档相似度分数")
+    """Class for storing a piece of text and associated metadata."""
+
+    page_content: str
+
     vector: list[float] | None = None
-    children: list[ChildDocument] = Field(default_factory=list, description="子文档列表")
+
+    """Arbitrary metadata about the page content (e.g., source, relationships to other
+        documents, etc.).
+    """
+    metadata: dict = Field(default_factory=dict)
+
+    provider: str | None = "dify"
+
+    children: list[ChildDocument] | None = None
 
 
-class ProcessMode(str, Enum):
+class ProcessMode(str, Enum):  # noqa: UP042
     PARAGRAPH = "paragraph"
     QA = "qa"
     PARENT_CHILD = "parent_child"
 
 
-class PreRule(str, Enum):
+class PreRule(str, Enum):  # noqa: UP042
     REMOVE_EMAIL = "remove_email"
     REMOVE_URL = "remove_url"
 
 
-class VectorProvider(str, Enum):
+class VectorProvider(str, Enum):  # noqa: UP042
     MILVUS = "milvus"
     CHROMA = "chroma"
 
@@ -52,17 +66,38 @@ class MilvusConfig(BaseModel):
     milvus_db: str = Field(description="Milvus数据库名称")
 
 
-class ModelType(str, Enum):
+class ModelType(str, Enum):  # noqa: UP042
     EMBEDDING = "embedding"
     LLM = "llm"
     OCR = "ocr"
+
+    @classmethod
+    def value_of(cls, model_type: str) -> "ModelType":
+        for model in cls:
+            if model.value == model_type:
+                return model
+        raise ValueError(f"Model type {model_type} not found")
+
+
+class ModelProvider(StrEnum):
+    OPENAI = auto()
+    TONGYI = auto()
+    DASHSCOPE = auto()
+    VOLCENGINE = auto()
+
+    @classmethod
+    def value_of(cls, provider_name: str) -> "ModelProvider":
+        for provider in cls:
+            if provider.value == provider_name:
+                return provider
+        raise ValueError(f"Model provider {provider_name} not found")
 
 
 class ModelConfig(BaseModel):
     """单条模型配置"""
 
     type: ModelType = Field(description="模型类型: embedding / llm / ocr")
-    provider: str = Field(description="模型供应商, 如 dashscope / openai")
+    provider: ModelProvider = Field(description="模型供应商, 如 dashscope / openai")
     name: str = Field(description="模型名称, 如 text-embedding-v3")
     config: dict = Field(default_factory=dict, description="模型专属配置(base64 解码后的 JSON)")
 
@@ -86,3 +121,42 @@ class EmbeddingConfig(BaseModel):
 
 class AuthHeader(BaseModel):
     authorization: str = Field(description="Authorization 头")
+
+
+class ExtractSetting(BaseModel):
+    """
+    Model class for provider response.
+    """
+
+    upload_file: UploadFile | None = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+
+class PreProcessingRule(BaseModel):
+    id: str
+    enabled: bool
+
+
+class Segmentation(BaseModel):
+    separator: str = "\n"
+    max_tokens: int
+    chunk_overlap: int = 0
+
+
+class Rule(BaseModel):
+    pre_processing_rules: list[PreProcessingRule] | None = None
+    segmentation: Segmentation | None = None
+    parent_mode: Literal["full-doc", "paragraph"] | None = None
+    subchunk_segmentation: Segmentation | None = None
+
+
+class ProcessRule(BaseModel):
+    mode: Literal["automatic", "custom", "hierarchical"]
+    rules: Rule | None = None
+
+
+class ParentMode(StrEnum):
+    FULL_DOC = "full-doc"
+    PARAGRAPH = "paragraph"

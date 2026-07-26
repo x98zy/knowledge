@@ -22,9 +22,11 @@ class KnowledgeService:
     """知识服务"""
 
     @classmethod
-    async def get_knowledge_list(cls, page: int, page_size: int, keyword: str | None = None) -> Page[Dataset]:
+    async def get_knowledge_list(
+        cls, user_id: str, page: int, page_size: int, keyword: str | None = None
+    ) -> Page[Dataset]:
         """获取知识库列表接口"""
-        query = select(Dataset).order_by(Dataset.id.desc())
+        query = select(Dataset).filter(Dataset.created_by_id == user_id).order_by(Dataset.id.desc())
         if keyword:
             query = query.where(Dataset.name.contains(keyword) | Dataset.description.contains(keyword))
         page_info = await paginate(
@@ -64,6 +66,8 @@ class KnowledgeService:
             embedding_provider=embedding_provider,
             created_by=current_user.username,
             updated_by=current_user.username,
+            created_by_id=current_user.id,
+            updated_by_id=current_user.id,
             collection_name=str(uuid4()),
             logo="default_dataset.png",
         )

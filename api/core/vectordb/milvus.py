@@ -2,8 +2,10 @@ from typing import Any
 
 from pymilvus import AsyncMilvusClient
 from pymilvus.milvus_client import IndexParams
+from uuid_extensions import uuid7
 
 from common.entites import Document, MilvusConfig
+from extensions.ext_log import logger
 from extensions.ext_redis import redis_client
 
 from .base import VectorBase
@@ -83,9 +85,40 @@ class MilvusVector(VectorBase):
                 )
             await redis_client.set(collection_exist_cache_key, 1, ex=3600)
 
-    async def create(self, documents: list[Document], **kwargs) -> list[str]:
+    async def create(self, texts: list[Document], embeddings: list[list[float]], **kwargs):
         """创建文档向量, 返回向量ID"""
-        raise NotImplementedError
+        await self.create_collection(embeddings)
+        await self.add_texts(texts, embeddings)
+
+    async def add_texts(self, documentss: list[Document], embeddings: list[list[float]]):
+        """
+        Add texts and their embeddings to the collection.
+        """
+        insert_dict_list = []
+        for i in range(len(documentss)):
+            insert_dict = {
+                # Do not need to insert the sparse_vector field separately, as the text_bm25_emb
+                # function will automatically convert the native text into a sparse vector for us.
+                VectorField.CONTENT.value: documentss[i].page_content,
+                VectorField.VECTOR.value: embeddings[i],
+                VectorField.METADATA.value: documentss[i].metadata,
+                VectorField.ID.value: str(uuid7()),
+            }
+            insert_dict_list.append(insert_dict)
+        # Total insert count
+        total_count = len(insert_dict_list)
+        pks: list[str] = []
+
+        for i in range(0, total_count, 1000):
+            # Insert into the collection.
+            batch_insert_list = insert_dict_list[i : i + 1000]
+            try:
+                ids = await self.client.insert(collection_name=self.collection_name, data=batch_insert_list)
+                pks.extend(ids)
+            except Exception as e:
+                logger.exception("Failed to insert batch starting at entity: %s/%s", i, total_count)
+                raise e
+        return pks
 
     async def vector_search(self, query: str) -> list[Document]:
         """向量搜索"""
