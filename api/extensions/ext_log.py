@@ -75,6 +75,10 @@ class FastapiLogger:
         """Log critical level message."""
         self.logger.critical(message, *args, **kwargs)
 
+    def exception(self, message: str, *args, **kwargs) -> None:
+        """Log critical level message."""
+        self.logger.exception(message, *args, **kwargs)
+
 
 logger = FastapiLogger()
 

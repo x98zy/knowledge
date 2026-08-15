@@ -46,11 +46,10 @@ class AliYunOSS:
             )
         )
         logger.info(f"下载文件 {file_key} status_code={result.status_code}")
-        async with result.body as body_stream:
-            data = await body_stream.read()
-            async with aiofiles.open(file_path, "wb") as f:
-                await f.write(data)
-            logger.info(f"文件下载完成，保存至路径：{file_path}")
+        data = await result.body.read()
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(data)
+        logger.info(f"文件下载完成，保存至路径：{file_path}")
 
     def get_signed_url(self, file_key: str, expire: int = 3600):
         """获取 OSS 签名 URL, file_key"""

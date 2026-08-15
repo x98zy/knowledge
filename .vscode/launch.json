@@ -16,6 +16,19 @@
       ],
       "jinja": true,
       "justMyCode": true
+    },
+    {
+      "name": "FastStream Broker: Debug",
+      "type": "debugpy",
+      "cwd": "${workspaceFolder}/api",
+      "request": "launch",
+      "module": "faststream",
+      "python": "${workspaceFolder}/api/.venv/Scripts/python.exe",
+      "args": [
+        "run",
+        "workers.app:app"
+      ],
+      "justMyCode": true
     }
   ]
 }

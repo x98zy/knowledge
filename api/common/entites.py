@@ -26,6 +26,8 @@ class ChildDocument(BaseModel):
 class Document(BaseModel):
     """Class for storing a piece of text and associated metadata."""
 
+    id: str | None = None
+
     page_content: str
 
     vector: list[float] | None = None

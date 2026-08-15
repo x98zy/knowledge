@@ -54,6 +54,18 @@ class Settings(BaseSettings):
     CHILD_CHUNKS_PREVIEW_NUMBER: int = Field(description="子文档预览数量", default=50)
     QA_MODEL_NAME: str = Field(..., description="Q-A问答模型名称")
 
+    BROKER_URL: str = Field(..., description="消息队列地址")
+    BROKER_AUTO_OFFSET_RESET: str = Field(default="latest", description="消息队列自动偏移重置策略")
+    BROKER_GROUP_ID: str = Field(default="knowledge-worker", description="消息队列消费者组ID")
+    BROKER_MAX_PULL_RECORDS: int = Field(default=100, description="消息队列最大拉取记录数")
+    EXTRACTOR_TOPIC: str = Field(default="extract", description="提取器消息队列主题")
+    EXTRACT_MAX_WORKERS: int = Field(default=5, description="提取器最大工作线程数")
+
+    # embed worker配置
+    EMBED_TOPIC: str = Field(default="embed", description="嵌入器消息队列主题")
+    EMBED_MAX_WORKERS: int = Field(default=5, description="嵌入器最大工作线程数")
+    EMBDED_BATCH_SIZE: int = Field(default=100, description="嵌入器批量处理大小")
+
     @model_validator(mode="before")
     @classmethod
     def parse_models_json(cls, data: dict) -> dict:

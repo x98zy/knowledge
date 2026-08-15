@@ -95,11 +95,12 @@ def register_exception_handler(app: FastAPI) -> None:
 
 def register_router(app: FastAPI) -> None:
     """注册路由"""
-    from router import knowledge_router, search_router, user_router
+    from router import knowledge_router, search_router, user_router, file_router
 
     app.include_router(knowledge_router)
     app.include_router(search_router)
     app.include_router(user_router)
+    app.include_router(file_router)
 
 
 def register_middleware(app: FastAPI) -> None:
@@ -170,8 +171,15 @@ def init_app(app: FastAPI) -> FastAPI:
     # 替换默认的 openapi() 方法，注入全局 Bearer 安全方案
     app.openapi = lambda: _custom_openapi(app)
 
+    from workers.app import broker
+
+    @app.on_event("startup")
+    async def startup():
+        await broker.connect()
+
     @app.on_event("shutdown")
     async def shutdown():
+        await broker.close()
         await redis_client.close()
 
     return app

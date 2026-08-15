@@ -38,7 +38,7 @@
       >
         <el-table-column prop="name" label="名称" min-width="180">
           <template #default="{ row }">
-            <div class="kb-name">
+            <div class="kb-name kb-name-clickable" @click="goToFileList(row)">
               <span class="kb-icon">📚</span>
               <span>{{ row.name }}</span>
             </div>
@@ -53,8 +53,8 @@
           </template>
         </el-table-column>
         <el-table-column label="操作" width="120" fixed="right">
-          <template #default>
-            <el-button type="primary" link size="small">详情</el-button>
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="goToFileList(row)">详情</el-button>
             <el-button type="danger" link size="small">删除</el-button>
           </template>
         </el-table-column>
@@ -127,9 +127,12 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { getKnowledgeList, createKnowledge, getEmbeddingModels } from '../../api'
 import { ElMessage } from 'element-plus'
+
+const router = useRouter()
 
 // ---------- List state ----------
 const loading = ref(false)
@@ -228,6 +231,10 @@ function formatDate(str) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function goToFileList(row) {
+  router.push({ name: 'KnowledgeFileList', params: { knowledgeId: row.id } })
+}
+
 onMounted(fetchList)
 </script>
 
@@ -270,6 +277,15 @@ onMounted(fetchList)
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.kb-name-clickable {
+  cursor: pointer;
+  color: #409eff;
+}
+
+.kb-name-clickable:hover {
+  text-decoration: underline;
 }
 
 .kb-icon {

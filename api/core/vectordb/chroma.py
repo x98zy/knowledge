@@ -1,4 +1,4 @@
-from api.common.entites import Document
+from common.entites import Document
 
 from .base import VectorBase
 

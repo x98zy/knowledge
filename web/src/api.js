@@ -106,3 +106,15 @@ export async function uploadFile(formData) {
   })
   return res.data
 }
+
+// ===================== 知识库文件 =====================
+
+export async function getKnowledgeFileList(knowledgeId, params) {
+  const res = await api.get(`/file/${knowledgeId}/list`, { params })
+  return res.data
+}
+
+export async function createKnowledgeFile(data) {
+  const res = await api.post('/file/create', data)
+  return res.data
+}

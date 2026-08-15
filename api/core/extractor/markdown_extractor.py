@@ -31,7 +31,7 @@ class MarkdownExtractor(BaseExtractor):
         self._encoding = encoding
         self._autodetect_encoding = autodetect_encoding
 
-    def extract(self) -> list[Document]:
+    async def extract(self) -> list[Document]:
         """Load from file path."""
         tups = self.parse_tups(self._file_path)
         documents = []

@@ -3,7 +3,8 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import Mapped
 
-from common.entites import VectorProvider
+from common.entites import PreProcessingRule, Rule, Segmentation, VectorProvider
+from common.entites import ProcessRule as CProcessRule
 from models.base import BaseModel
 
 
@@ -43,7 +44,38 @@ class ProcessRule(BaseModel):
     __tablename__ = "process_rules"
     kb_file_id: Mapped[str] = Column(String(255), nullable=False, comment="文件ID", index=True)
     segment_mode: Mapped[str] = Column(String(50), nullable=False, comment="分段规则")
-    pre_rule: Mapped[str] = Column(String(50), nullable=False, comment="预处理规则")
+    pre_rule: Mapped[str] = Column(
+        String(50), nullable=False, comment="预处理规则 1.remove_urls_emails 2.remove_extra_spaces"
+    )
     max_tokens: Mapped[int] = Column(Integer, nullable=False, comment="分段最大长度")
     overlap: Mapped[int] = Column(Integer, nullable=False, comment="分段重叠长度")
     delimiter: Mapped[str] = Column(String(100), nullable=False, comment="分段分隔符")
+
+    # 子分段模式
+    parent_mode: Mapped[str] = Column(String(100), nullable=True, comment="父分段模式，只能是full-doc或者是paragraph")
+    child_delimiter: Mapped[str] = Column(String(100), nullable=True, comment="子分段分隔符")
+    child_max_tokens: Mapped[int] = Column(Integer, nullable=True, comment="子分段最大长度")
+    child_overlap: Mapped[int] = Column(Integer, nullable=True, comment="子分段重叠长度")
+
+    @property
+    def tranform_rule(self) -> CProcessRule:
+        pre_rules_list = []
+        if self.pre_rule:
+            pre_rules = self.pre_rule.split(";")
+            for rule in pre_rules:
+                pre_rules_list.append(PreProcessingRule(id=rule, enabled=True))
+        return CProcessRule(
+            mode="hierarchical" if self.segment_mode == "hierarchical_model" else "custom",
+            rules=Rule(
+                pre_processing_rules=pre_rules_list,
+                segmentation=Segmentation(
+                    separator=self.delimiter, max_tokens=self.max_tokens, chunk_overlap=self.overlap
+                ),
+            ),
+            parent_mode=self.parent_mode,
+            subchunk_segmentation=Segmentation(
+                separator=self.child_delimiter, max_tokens=self.child_max_tokens, chunk_overlap=self.child_overlap
+            )
+            if self.parent_mode
+            else None,
+        )

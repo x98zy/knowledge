@@ -25,6 +25,12 @@ const routes = [
           meta: { title: '知识库', icon: 'Collection' },
         },
         {
+          path: 'knowledge/:knowledgeId/files',
+          name: 'KnowledgeFileList',
+          component: () => import('../views/knowledge/FileList.vue'),
+          meta: { title: '知识库文件', icon: 'Document' },
+        },
+        {
           path: 'profile',
           name: 'Profile',
           component: () => import('../views/Profile.vue'),
