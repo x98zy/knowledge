@@ -41,6 +41,13 @@ async def extract(message: ExtracMessage):
             await db.session.execute(smt)
             await db.session.commit()
             return
+        # 将文件状态更新为解析中
+        smt = (
+            update(KbFile)
+            .where(KbFile.id == message.kb_file_id, KbFile.deleted == 0)
+            .values(status=FileStatus.PROCESSING.value)
+        )
+        await db.session.execute(smt)
         index_factory = IndexProcessorFactory(process_rule.segment_mode)
         index_processor = index_factory.init_index_processor()
         extract_settings = ExtractSetting(upload_file=UploadFile(file_key=kb_file.file_key))
@@ -68,6 +75,7 @@ async def extract(message: ExtracMessage):
                     child_segment = ChildSegment(
                         id=str(uuid7()),
                         parent_id=segment.id,
+                        file_id=kb_file.id,
                         dataset_id=kb_file.dataset_id,
                         content=child_doc.page_content,
                         metadata_=child_doc.metadata,
@@ -82,7 +90,9 @@ async def extract(message: ExtracMessage):
         for i in range(0, len(tranform_documents), settings.EMBDED_BATCH_SIZE):
             batch_documents = tranform_documents[i : i + settings.EMBDED_BATCH_SIZE]
             await broker.publish(
-                message=EmbedMessage(documents=batch_documents, kb_file_id=message.kb_file_id).model_dump(),
+                message=EmbedMessage(
+                    documents=batch_documents, kb_file_id=message.kb_file_id, kb_id=kb_file.dataset_id
+                ).model_dump(),
                 topic=settings.EMBED_TOPIC,
             )
         logger.info(

@@ -93,15 +93,20 @@ class ParentChildIndexProcessor(BaseIndexProcessor):
 
         return all_documents
 
-    async def load(self, dataset: Dataset, documents: list[Document], with_keywords: bool = True, **kwargs):
+    async def load(
+        self, dataset: Dataset, documents: list[Document], with_keywords: bool = True, **kwargs
+    ) -> list[str]:
         vector = VectorFactory(dataset)
+        pks = []
         for document in documents:
             child_documents = document.children
             if child_documents:
                 formatted_child_documents = [
                     Document(**child_document.model_dump()) for child_document in child_documents
                 ]
-                await vector.create(formatted_child_documents)
+                ids = await vector.create(formatted_child_documents)
+                pks.extend(ids)
+        return pks
 
     def clean(self, dataset: Dataset, node_ids: list[str] | None, with_keywords: bool = True, **kwargs):
         # node_ids is segment's node_ids

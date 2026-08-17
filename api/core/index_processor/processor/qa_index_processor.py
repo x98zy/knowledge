@@ -83,9 +83,11 @@ class QAIndexProcessor(BaseIndexProcessor):
                         )
         return all_qa_documents
 
-    async def load(self, dataset: Dataset, documents: list[Document], with_keywords: bool = True, **kwargs):
+    async def load(
+        self, dataset: Dataset, documents: list[Document], with_keywords: bool = True, **kwargs
+    ) -> list[str]:
         vector = VectorFactory(dataset)
-        await vector.create(documents)
+        return await vector.create(documents)
 
     def clean(self, dataset: Dataset, node_ids: list[str] | None, with_keywords: bool = True, **kwargs):
         pass

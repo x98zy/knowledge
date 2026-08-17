@@ -41,7 +41,8 @@ class VectorFactory:
         )
         self.embedding_factory = EmbeddingFactory(config)
 
-    async def create(self, documents: list[Document], **kwargs):
+    async def create(self, documents: list[Document], **kwargs) -> list[str]:
+        all_point_ids = []
         if documents:
             start = time.time()
             logger.info("start embedding %s texts %s", len(documents), start)
@@ -57,5 +58,7 @@ class VectorFactory:
                 logger.info(
                     "Embedding batch %s/%s took %s s", i // batch_size + 1, total_batches, time.time() - batch_start
                 )
-                await self.vector.create(texts=batch, embeddings=batch_embeddings, **kwargs)
+                pks = await self.vector.create(texts=batch, embeddings=batch_embeddings, **kwargs)
+                all_point_ids.extend(pks)
             logger.info("Embedding %s texts took %s s", len(documents), time.time() - start)
+        return all_point_ids

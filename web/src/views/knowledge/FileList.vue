@@ -100,14 +100,15 @@
             :limit="1"
             :on-change="handleFileChange"
             :on-exceed="handleExceed"
+            :on-remove="handleFileRemove"
             :file-list="fileList"
           >
-            <el-button type="primary">
+            <el-button type="primary" :loading="fileUploading">
               <el-icon><Upload /></el-icon>
-              选择文件
+              {{ fileUploading ? '上传中...' : '选择文件' }}
             </el-button>
             <template #tip>
-              <div class="el-upload__tip">支持 txt, md, pdf, docx, csv, xlsx, html 等格式</div>
+              <div class="el-upload__tip">支持 txt, md, pdf, docx, csv, xlsx, html 等格式（选择后将自动上传到 OSS）</div>
             </template>
           </el-upload>
         </el-form-item>
@@ -148,7 +149,10 @@
         <template v-if="uploadForm.segment_mode === 'hierarchical_model'">
           <el-divider>父子分段配置</el-divider>
           <el-form-item label="父分段规则" prop="parent_mode">
-            <el-input v-model="uploadForm.parent_mode" placeholder="请输入父分段规则" />
+            <el-select v-model="uploadForm.parent_mode" placeholder="请选择父分段规则" style="width: 100%">
+              <el-option label="全文" value="full-doc" />
+              <el-option label="段落" value="paragraph" />
+            </el-select>
           </el-form-item>
           <el-form-item label="子分段分隔符" prop="child_delimiter">
             <el-input v-model="uploadForm.child_delimiter" placeholder="如 \n" />
@@ -192,6 +196,8 @@ const totalItems = ref(0)
 // ---------- Upload state ----------
 const showUploadDialog = ref(false)
 const uploading = ref(false)
+const fileUploading = ref(false)
+const uploadedFileKey = ref('')
 const uploadFormRef = ref(null)
 const fileList = ref([])
 
@@ -214,6 +220,7 @@ const uploadRules = {
   max_tokens: [{ required: true, message: '请输入分段最大长度', trigger: 'blur' }],
   overlap: [{ required: true, message: '请输入分段重叠长度', trigger: 'blur' }],
   delimiter: [{ required: true, message: '请输入分段分隔符', trigger: 'blur' }],
+  parent_mode: [{ required: true, message: '请选择父分段规则', trigger: 'change' }],
 }
 
 // ---------- Methods ----------
@@ -249,9 +256,34 @@ function goBack() {
 }
 
 // ---------- Upload handlers ----------
-function handleFileChange(file) {
+async function handleFileChange(file) {
   uploadForm.file = file.raw
   fileList.value = [file]
+  uploadedFileKey.value = ''
+
+  if (!file.raw) return
+
+  fileUploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file.raw)
+    const uploadRes = await uploadFile(formData)
+    uploadedFileKey.value = uploadRes.data.file_key
+    ElMessage.success('文件已上传到 OSS')
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || '文件上传到 OSS 失败，请重新选择')
+    // 清空选择，避免带着失败状态点确定
+    fileList.value = []
+    uploadForm.file = null
+    uploadedFileKey.value = ''
+  } finally {
+    fileUploading.value = false
+  }
+}
+
+function handleFileRemove() {
+  uploadForm.file = null
+  uploadedFileKey.value = ''
 }
 
 function handleExceed(files) {
@@ -262,6 +294,8 @@ function resetUploadForm() {
   uploadFormRef.value?.resetFields()
   uploadForm.file = null
   fileList.value = []
+  uploadedFileKey.value = ''
+  fileUploading.value = false
   uploadForm.segment_mode = 'text_model'
   uploadForm.pre_rule_list = []
   uploadForm.max_tokens = 500
@@ -277,22 +311,21 @@ async function handleUpload() {
   const valid = await uploadFormRef.value?.validate().catch(() => null)
   if (valid === null) return
 
+  if (!uploadedFileKey.value) {
+    ElMessage.warning(fileUploading.value ? '文件仍在上传中，请稍候' : '请先选择并上传文件')
+    return
+  }
+
   uploading.value = true
   try {
-    // 1. 上传文件到 OSS
-    const formData = new FormData()
-    formData.append('file', uploadForm.file)
-    const uploadRes = await uploadFile(formData)
-    const fileKey = uploadRes.data.file_key
-
-    // 2. 拼接 pre_rule（多选用分号分隔）
+    // 1. 拼接 pre_rule（多选用分号分隔）
     const preRule = uploadForm.pre_rule_list.join(';')
 
-    // 3. 创建文件记录，触发解析
+    // 2. 创建文件记录，触发解析（使用已经上传 OSS 返回的 file_key）
     const isHierarchical = uploadForm.segment_mode === 'hierarchical_model'
     await createKnowledgeFile({
       dataset_id: knowledgeId,
-      file_key: fileKey,
+      file_key: uploadedFileKey.value,
       enable_semantic: false,
       segment_mode: uploadForm.segment_mode,
       pre_rule: preRule,
@@ -305,12 +338,12 @@ async function handleUpload() {
       child_max_tokens: isHierarchical ? uploadForm.child_max_tokens : null,
     })
 
-    // 4. 成功提示并刷新列表
+    // 3. 成功提示并刷新列表
     ElMessage.success('文件上传成功，正在解析中...')
     showUploadDialog.value = false
     fetchList()
   } catch (e) {
-    ElMessage.error(e.response?.data?.message || '文件上传失败')
+    ElMessage.error(e.response?.data?.message || '创建文件记录失败')
   } finally {
     uploading.value = false
   }
@@ -319,8 +352,9 @@ async function handleUpload() {
 function getStatusTagType(status) {
   const map = {
     waiting: 'info',
-    parsing: 'warning',
-    completed: 'success',
+    processing: 'warning',
+    indexing: 'warning',
+    success: 'success',
     failed: 'danger',
   }
   return map[status] || 'info'
@@ -329,8 +363,9 @@ function getStatusTagType(status) {
 function getStatusText(status) {
   const map = {
     waiting: '等待解析',
-    parsing: '解析中',
-    completed: '解析完成',
+    processing: '解析中',
+    indexing: '索引中',
+    success: '解析完成',
     failed: '解析失败',
   }
   return map[status] || status

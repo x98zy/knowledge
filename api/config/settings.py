@@ -103,7 +103,7 @@ class Settings(BaseSettings):
 
     @property
     def MILVUS_URL(self) -> str:  # noqa: N802
-        return f"https://{self.MILVUS_HOST}:{self.MILVUS_PORT}"
+        return f"http://{self.MILVUS_HOST}:{self.MILVUS_PORT}"
 
 
 @lru_cache(maxsize=1)

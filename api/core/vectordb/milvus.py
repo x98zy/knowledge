@@ -54,7 +54,6 @@ class MilvusVector(VectorBase):
                 # filters: ["cncharonly"] — 在分词之后应用过滤器，只保留中文字符，过滤掉数字、英文字母、标点符号等无关 token
                 content_field_kwargs["analyzer_params"] = {
                     "tokenizer": "jieba",
-                    "filters": ["cncharonly"],
                 }
                 fields.append(FieldSchema(VectorField.CONTENT.value, DataType.VARCHAR, **content_field_kwargs))
                 fields.append(FieldSchema(VectorField.ID.value, DataType.VARCHAR, is_primary=True, max_length=50))
@@ -85,12 +84,12 @@ class MilvusVector(VectorBase):
                 )
             await redis_client.set(collection_exist_cache_key, 1, ex=3600)
 
-    async def create(self, texts: list[Document], embeddings: list[list[float]], **kwargs):
+    async def create(self, texts: list[Document], embeddings: list[list[float]], **kwargs) -> list[str]:
         """创建文档向量, 返回向量ID"""
         await self.create_collection(embeddings)
-        await self.add_texts(texts, embeddings)
+        return await self.add_texts(texts, embeddings)
 
-    async def add_texts(self, documentss: list[Document], embeddings: list[list[float]]):
+    async def add_texts(self, documentss: list[Document], embeddings: list[list[float]]) -> list[str]:
         """
         Add texts and their embeddings to the collection.
         """
@@ -113,11 +112,14 @@ class MilvusVector(VectorBase):
             # Insert into the collection.
             batch_insert_list = insert_dict_list[i : i + 1000]
             try:
-                ids = await self.client.insert(collection_name=self.collection_name, data=batch_insert_list)
-                pks.extend(ids)
+                result = await self.client.insert(collection_name=self.collection_name, data=batch_insert_list)
+                if len(batch_insert_list) != result.get("insert_count"):
+                    raise RuntimeError("milvus 插入数据失败")
+                pks.extend(result.get("ids", []))
             except Exception as e:
                 logger.exception("Failed to insert batch starting at entity: %s/%s", i, total_count)
                 raise e
+
         return pks
 
     async def vector_search(self, query: str) -> list[Document]:

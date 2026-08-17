@@ -71,11 +71,11 @@ class ProcessRule(BaseModel):
                 segmentation=Segmentation(
                     separator=self.delimiter, max_tokens=self.max_tokens, chunk_overlap=self.overlap
                 ),
+                parent_mode=self.parent_mode,
+                subchunk_segmentation=Segmentation(
+                    separator=self.child_delimiter, max_tokens=self.child_max_tokens, chunk_overlap=self.child_overlap
+                )
+                if self.parent_mode
+                else None,
             ),
-            parent_mode=self.parent_mode,
-            subchunk_segmentation=Segmentation(
-                separator=self.child_delimiter, max_tokens=self.child_max_tokens, chunk_overlap=self.child_overlap
-            )
-            if self.parent_mode
-            else None,
         )

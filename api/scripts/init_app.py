@@ -179,7 +179,7 @@ def init_app(app: FastAPI) -> FastAPI:
 
     @app.on_event("shutdown")
     async def shutdown():
-        await broker.close()
+        await broker.stop()
         await redis_client.close()
 
     return app

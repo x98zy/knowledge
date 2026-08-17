@@ -13,6 +13,8 @@ class UploadFile(BaseModel):
 class ChildDocument(BaseModel):
     """Class for storing a piece of text and associated metadata."""
 
+    id: str | None = None
+
     page_content: str
 
     vector: list[float] | None = None

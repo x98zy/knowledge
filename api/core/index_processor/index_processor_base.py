@@ -25,7 +25,7 @@ class BaseIndexProcessor(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def load(self, dataset: Dataset, documents: list[Document], with_keywords: bool = True, **kwargs):
+    def load(self, dataset: Dataset, documents: list[Document], with_keywords: bool = True, **kwargs) -> list[str]:
         raise NotImplementedError
 
     @abstractmethod
