@@ -134,9 +134,9 @@ class MilvusVector(VectorBase):
         """删除文档向量"""
         raise NotImplementedError
 
-    async def drop_collection(self, collection_name: str) -> None:
+    async def drop_collection(self) -> None:
         """删除向量集合"""
-        raise NotImplementedError
+        await self.client.drop_collection(self.collection_name)
 
     async def embedding(self, text: list[str]) -> list[list[float]]:
         """文本文本的向量表示"""

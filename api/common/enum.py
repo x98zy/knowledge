@@ -14,3 +14,9 @@ class SegmentStatus(StrEnum):
     INDEXING = "indexing"
     COMPLETED = "completed"
     ERROR = "error"
+
+
+class OutBoxStatus(StrEnum):
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"

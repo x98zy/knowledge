@@ -11,7 +11,8 @@ from extensions.ext_log import logger
 from models.dataset import Dataset, ProcessRule
 from models.document import KbFile, UploadFile
 from models.user import User
-from workers.app import broker
+from models.outbox import OutboxMessage
+from workers.app import send_broker_message
 from workers.entites import ExtracMessage
 
 
@@ -104,10 +105,20 @@ class FileService:
                 updated_by=user.username,
             )
             db.session.add(process_rule)
+            if settings.START_BROKER_OUTBOX:
+                outbox_record = OutboxMessage(
+                    topic=settings.EXTRACTOR_TOPIC,
+                    payload=ExtracMessage(kb_file_id=kb_file_id, metadata={}).model_dump(),
+                    created_by_id=user.id,
+                    updated_by_id=user.id,
+                    created_by=user.username,
+                    updated_by=user.username,
+                )
+                db.session.add(outbox_record)
             await db.session.commit()
-            await broker.publish(
-                message=ExtracMessage(kb_file_id=kb_file_id, metadata={}).model_dump(),
+            await send_broker_message(
                 topic=settings.EXTRACTOR_TOPIC,
+                message=ExtracMessage(kb_file_id=kb_file_id, metadata={}).model_dump(),
             )
             return True
         except Exception as e:

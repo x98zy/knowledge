@@ -45,4 +45,8 @@ def detect_file_encodings(file_path: str, timeout: int = 5, sample_size: int = 1
 
     if all(encoding["encoding"] is None for encoding in encodings):
         raise RuntimeError(f"Could not detect encoding for {file_path}")
-    return [FileEncoding(**enc) for enc in encodings if enc["encoding"] is not None]
+    return [
+        FileEncoding(encoding=enc.get("encoding"), confidence=enc.get("confidence", 0.0), language=enc.get("language"))
+        for enc in encodings
+        if enc["encoding"] is not None
+    ]

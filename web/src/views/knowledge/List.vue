@@ -55,7 +55,7 @@
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="goToFileList(row)">详情</el-button>
-            <el-button type="danger" link size="small">删除</el-button>
+            <el-button type="danger" link size="small" :loading="deletingId === row.id" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -129,10 +129,13 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Search } from '@element-plus/icons-vue'
-import { getKnowledgeList, createKnowledge, getEmbeddingModels } from '../../api'
-import { ElMessage } from 'element-plus'
+import { getKnowledgeList, createKnowledge, getEmbeddingModels, deleteKnowledge } from '../../api'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
+
+// ---------- Delete state ----------
+const deletingId = ref('')
 
 // ---------- List state ----------
 const loading = ref(false)
@@ -233,6 +236,44 @@ function formatDate(str) {
 
 function goToFileList(row) {
   router.push({ name: 'KnowledgeFileList', params: { knowledgeId: row.id } })
+}
+
+async function handleDelete(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除知识库「${row.name}」吗？该操作将同时删除其下所有文件与向量数据，且不可恢复。`,
+      '删除知识库',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+  } catch {
+    // 用户点了取消
+    return
+  }
+
+  deletingId.value = row.id
+  try {
+    const res = await deleteKnowledge(row.id)
+    // 后端返回 { success, code, message, data }
+    if (res?.success) {
+      ElMessage.success(res?.message || '知识库正在进行后台异步删除')
+      // 当前页如果只剩这一条，删除后回到上一页，避免空列表
+      if (tableData.value.length === 1 && currentPage.value > 1) {
+        currentPage.value -= 1
+      }
+      fetchList()
+    } else {
+      ElMessage.error(res?.message || '删除失败')
+    }
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || '删除失败')
+  } finally {
+    deletingId.value = ''
+  }
 }
 
 onMounted(fetchList)

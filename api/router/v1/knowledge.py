@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body, Depends, Query, UploadFile
 
 from common.code import ResponseCode
-from common.response import SuccessResponse
+from common.response import ErrorResponse, SuccessResponse
 from middleware.auth import CurrentUser, get_current_user
 from router.v1.entites.dataset import CreateDatasetRequest, KnowledgeListRequest
 from schemas.knowledge import EmbeddingListResponse, EmbeddingModel
@@ -107,3 +107,12 @@ async def get_knowledge_list(
         user_id=current_user.user_id, page=req.page, page_size=req.page_size, keyword=req.keyword
     )
     return SuccessResponse(message="获取知识库列表成功", data=page_info.model_dump())
+
+
+@knowledge_router.delete("/{knowledge_id}/detail")
+async def delete_knowledge(knowledge_id: str, current_user: CurrentUser = Depends(get_current_user)):
+    success, msg = await KnowledgeService.delete_knowledge(knowledge_id, current_user.user_id)
+    if success:
+        return SuccessResponse(message="知识库正在进行后台异步删除")
+    else:
+        return ErrorResponse(message=msg, code=ResponseCode.ERROR.code)

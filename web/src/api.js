@@ -100,6 +100,11 @@ export async function getKnowledgeDetail(knowledgeId) {
   return res.data
 }
 
+export async function deleteKnowledge(knowledgeId) {
+  const res = await api.delete(`/knowledge/${knowledgeId}/detail`)
+  return res.data
+}
+
 export async function uploadFile(formData) {
   const res = await api.post('/knowledge/upload_file', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

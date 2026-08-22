@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     EMBED_MAX_WORKERS: int = Field(default=5, description="嵌入器最大工作线程数")
     EMBDED_BATCH_SIZE: int = Field(default=100, description="嵌入器批量处理大小")
 
+    # 删除知识库topic
+    DELETE_DATASET_TOPIC: str = Field(default="delete-dataset", description="嵌入器消息队列主题")
+    DELETE_DATASET_MAX_WORKERS: int = Field(default=2, description="提取器最大工作线程数")
+
+    # 是否开启broker outbox任务
+    START_BROKER_OUTBOX: bool = Field(default=False, description="是否开启broker outbox任务，确保broker消息正确发送")
+
     @model_validator(mode="before")
     @classmethod
     def parse_models_json(cls, data: dict) -> dict:

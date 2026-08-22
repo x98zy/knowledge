@@ -12,3 +12,7 @@ class EmbedMessage(BaseModel):
     documents: list[Document] = Field(..., description="待嵌入的文档列表")
     kb_file_id: str = Field(..., description="知识文件ID")
     kb_id: str = Field(..., description="知识库ID")
+
+
+class DeleteDatasetMessage(BaseModel):
+    kb_id: str = Field(..., description="知识库ID")

@@ -46,7 +46,7 @@ class VectorFactory:
         if documents:
             start = time.time()
             logger.info("start embedding %s texts %s", len(documents), start)
-            batch_size = 1000
+            batch_size = 10
             total_batches = len(documents) + batch_size - 1
             for i in range(0, len(documents), batch_size):
                 batch = documents[i : i + batch_size]
@@ -62,3 +62,6 @@ class VectorFactory:
                 all_point_ids.extend(pks)
             logger.info("Embedding %s texts took %s s", len(documents), time.time() - start)
         return all_point_ids
+
+    async def drop_collection(self):
+        await self.vector.drop_collection()

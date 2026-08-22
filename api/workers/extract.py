@@ -10,7 +10,7 @@ from extensions.ext_log import logger
 from models.dataset import ProcessRule
 from models.document import ChildSegment, FileSegments, KbFile
 
-from .app import broker
+from .app import broker, send_broker_message
 from .entites import EmbedMessage, ExtracMessage
 
 
@@ -89,11 +89,11 @@ async def extract(message: ExtracMessage):
         await db.session.commit()
         for i in range(0, len(tranform_documents), settings.EMBDED_BATCH_SIZE):
             batch_documents = tranform_documents[i : i + settings.EMBDED_BATCH_SIZE]
-            await broker.publish(
+            await send_broker_message(
+                topic=settings.EMBED_TOPIC,
                 message=EmbedMessage(
                     documents=batch_documents, kb_file_id=message.kb_file_id, kb_id=kb_file.dataset_id
                 ).model_dump(),
-                topic=settings.EMBED_TOPIC,
             )
         logger.info(
             f"Extracted and transformed {len(tranform_documents)} documents for kb_file_id: {message.kb_file_id}"

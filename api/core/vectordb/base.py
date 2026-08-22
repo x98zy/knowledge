@@ -25,7 +25,7 @@ class VectorBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def drop_collection(self, collection_name: str) -> None:
+    async def drop_collection(self) -> None:
         """删除向量集合"""
         raise NotImplementedError
 

@@ -1,10 +1,11 @@
 import hashlib
 import os
 import tempfile
+from datetime import datetime
 from uuid import uuid4
 
 from fastapi import UploadFile
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from common.code import ResponseCode
 from common.entites import ModelConfig, ModelType
@@ -15,18 +16,64 @@ from extensions.ext_db import db
 from extensions.ext_storage import storage
 from models.dataset import Dataset
 from models.document import UploadFile as UploadFileModel
+from models.outbox import OutboxMessage
 from models.user import User
+from workers.app import send_broker_message
+from workers.entites import DeleteDatasetMessage
 
 
 class KnowledgeService:
     """知识服务"""
 
     @classmethod
+    async def delete_knowledge(cls, knowledge_id: str, user_id: str) -> tuple[bool, str | None]:
+        try:
+            query = select(Dataset).filter(Dataset.id == knowledge_id, Dataset.deleted == 0)
+            dataset = await db.session.execute(query)
+            dataset = dataset.scalars().first()
+            if not dataset:
+                return False, "知识库不存在"
+            if dataset.created_by_id != user_id:
+                return False, "您无权限删除此知识库"
+            dataset_delete_query = (
+                update(Dataset)
+                .where(Dataset.id == knowledge_id, Dataset.deleted == 0)
+                .values(deleted=int(datetime.now().timestamp()))
+            )
+            # 先删mysql 记录，再投递消息到kafka中进行进行向量库数据的删除
+            await db.session.execute(dataset_delete_query)
+            query = select(User).where(User.id == user_id)
+            current_user = await db.session.execute(query)
+            current_user = current_user.scalars().first()
+            # 同事务写 outbox：消息意图落盘,最大可能保证消息被投递
+            if settings.START_BROKER_OUTBOX:
+                outbox_msg = OutboxMessage(
+                    topic=settings.DELETE_DATASET_TOPIC,
+                    payload=DeleteDatasetMessage(kb_id=knowledge_id).model_dump(),
+                    created_by_id=user_id,
+                    updated_by_id=user_id,
+                    created_by=current_user.username,
+                    updated_by=current_user.username,
+                )
+                db.session.add(outbox_msg)
+            else:
+                await send_broker_message(
+                    DeleteDatasetMessage(kb_id=knowledge_id).model_dump(), topic=settings.DELETE_DATASET_TOPIC
+                )
+            await db.session.commit()
+            return True, None
+        except Exception:
+            await db.session.rollback()
+            return False, "知识库删除失败"
+
+    @classmethod
     async def get_knowledge_list(
         cls, user_id: str, page: int, page_size: int, keyword: str | None = None
     ) -> Page[Dataset]:
         """获取知识库列表接口"""
-        query = select(Dataset).filter(Dataset.created_by_id == user_id).order_by(Dataset.id.desc())
+        query = (
+            select(Dataset).filter(Dataset.created_by_id == user_id, Dataset.deleted == 0).order_by(Dataset.id.desc())
+        )
         if keyword:
             query = query.where(Dataset.name.contains(keyword) | Dataset.description.contains(keyword))
         page_info = await paginate(
