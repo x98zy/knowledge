@@ -65,3 +65,6 @@ class VectorFactory:
 
     async def drop_collection(self):
         await self.vector.drop_collection()
+
+    async def delete_by_ids(self, ids: list[str]):
+        await self.vector.delete(ids)

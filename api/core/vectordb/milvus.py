@@ -132,7 +132,7 @@ class MilvusVector(VectorBase):
 
     async def delete(self, document_ids: list[str]) -> None:
         """删除文档向量"""
-        raise NotImplementedError
+        await self.client.delete(collection_name=self.collection_name, ids=document_ids, timeout=30)
 
     async def drop_collection(self) -> None:
         """删除向量集合"""

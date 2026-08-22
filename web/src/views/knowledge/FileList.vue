@@ -61,6 +61,20 @@
             <span v-else style="color: #c0c4cc;">-</span>
           </template>
         </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              type="danger"
+              link
+              size="small"
+              :loading="row._deleting"
+              @click="handleDelete(row)"
+            >
+              <el-icon style="vertical-align: -2px;"><Delete /></el-icon>
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
 
       <!-- 分页 -->
@@ -176,9 +190,9 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Search, Upload } from '@element-plus/icons-vue'
-import { getKnowledgeFileList, uploadFile, createKnowledgeFile } from '../../api'
-import { ElMessage } from 'element-plus'
+import { ArrowLeft, Search, Upload, Delete } from '@element-plus/icons-vue'
+import { getKnowledgeFileList, uploadFile, createKnowledgeFile, deleteKnowledgeFile } from '../../api'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
@@ -369,6 +383,39 @@ function getStatusText(status) {
     failed: '解析失败',
   }
   return map[status] || status
+}
+
+// ---------- Delete handlers ----------
+async function handleDelete(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除文件「${row.file_name}」吗？该文件的分段与向量索引也将一并清理，操作不可恢复。`,
+      '删除确认',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+  } catch {
+    return
+  }
+
+  try {
+    row._deleting = true
+    await deleteKnowledgeFile(row.id)
+    ElMessage.success('删除成功，文件已移入后台清理')
+    // 若当前页删光了（只剩这一条），优先切到前一页，避免空页
+    if (tableData.value.length === 1 && currentPage.value > 1) {
+      currentPage.value -= 1
+    }
+    fetchList()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || '删除失败，请稍后重试')
+  } finally {
+    row._deleting = false
+  }
 }
 
 onMounted(fetchList)

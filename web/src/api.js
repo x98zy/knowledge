@@ -123,3 +123,8 @@ export async function createKnowledgeFile(data) {
   const res = await api.post('/file/create', data)
   return res.data
 }
+
+export async function deleteKnowledgeFile(fileId) {
+  const res = await api.delete(`/file/${fileId}`)
+  return res.data
+}
