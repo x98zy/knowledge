@@ -157,9 +157,17 @@ class MilvusVector(VectorBase):
         )
         return self._process_search_result(results, score)
 
-    async def full_text_search(self, query: str) -> list[Document]:
+    async def full_text_search(self, query: str, top_k: int, score: float, query_filter: dict) -> list[SearchDocument]:
         """全文本搜索"""
-        raise NotImplementedError
+        results = await self.client.search(
+            collection_name=self.collection_name,
+            data=[query],
+            # search 要求 data 为向量列表(list[list[float]])，单个查询向量也需包一层
+            limit=max(1, top_k),
+            output_fields=[VectorField.ID.value, VectorField.CONTENT.value, VectorField.METADATA.value],
+            anns_field=VectorField.SPARSE_VECTOR.value,
+        )
+        return self._process_search_result(results, score)
 
     async def delete(self, document_ids: list[str]) -> None:
         """删除文档向量"""

@@ -72,3 +72,6 @@ class VectorFactory:
     async def vector_search(self, query: str, top_k: int, score: float, query_filter: dict) -> list[SearchDocument]:
         query_embedding = await self.embedding_factory.embed(query)
         return await self.vector.vector_search(query_embedding, top_k, score, query_filter)
+
+    async def full_text_search(self, query: str, top_k: int, score: float, query_filter: dict) -> list[SearchDocument]:
+        return await self.vector.full_text_search(query, top_k, score, query_filter)
