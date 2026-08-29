@@ -1,6 +1,6 @@
 import time
 
-from common.entites import Document, EmbeddingConfig, MilvusConfig, VectorProvider
+from common.entites import Document, EmbeddingConfig, MilvusConfig, SearchDocument, VectorProvider
 from config.settings import settings
 from core.embeddings.factory import EmbeddingFactory
 from extensions.ext_log import logger
@@ -68,3 +68,7 @@ class VectorFactory:
 
     async def delete_by_ids(self, ids: list[str]):
         await self.vector.delete(ids)
+
+    async def vector_search(self, query: str, top_k: int, score: float, query_filter: dict) -> list[SearchDocument]:
+        query_embedding = await self.embedding_factory.embed(query)
+        return await self.vector.vector_search(query_embedding, top_k, score, query_filter)

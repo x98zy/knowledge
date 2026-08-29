@@ -10,7 +10,9 @@ class VectorBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def vector_search(self, query: str) -> list[Document]:
+    async def vector_search(
+        self, query_embedding: list[float], top_k: int, score: float, query_filter: dict
+    ) -> list[Document]:
         """向量搜索"""
         raise NotImplementedError
 

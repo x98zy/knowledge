@@ -4,7 +4,7 @@ from pymilvus import AsyncMilvusClient
 from pymilvus.milvus_client import IndexParams
 from uuid_extensions import uuid7
 
-from common.entites import Document, MilvusConfig
+from common.entites import Document, MilvusConfig, SearchDocument
 from extensions.ext_log import logger
 from extensions.ext_redis import redis_client
 
@@ -122,9 +122,40 @@ class MilvusVector(VectorBase):
 
         return pks
 
-    async def vector_search(self, query: str) -> list[Document]:
+    def _process_search_result(self, results: list[dict], score: float) -> list[SearchDocument]:
+        docs: list[SearchDocument] = []
+        for hits in results:
+            for hit in hits:
+                # IP 度量下 distance 为相似度，越大越相关，低于阈值直接过滤
+                if hit["distance"] < score:
+                    continue
+                entity = hit.get("entity", {})
+                metadata = entity.get(VectorField.METADATA.value, {}) or {}
+                metadata["score"] = hit["distance"]
+                docs.append(
+                    SearchDocument(
+                        id=str(hit["id"]),
+                        page_content=entity.get(VectorField.CONTENT.value, ""),
+                        metadata=metadata,
+                        score=hit["distance"],
+                    )
+                )
+        return docs
+
+    async def vector_search(
+        self, query_embedding: list[float], top_k: int, score: float, query_filter: dict
+    ) -> list[SearchDocument]:
         """向量搜索"""
-        raise NotImplementedError
+        results = await self.client.search(
+            collection_name=self.collection_name,
+            # search 要求 data 为向量列表(list[list[float]])，单个查询向量也需包一层
+            data=[query_embedding],
+            limit=max(1, top_k),
+            output_fields=[VectorField.ID.value, VectorField.CONTENT.value, VectorField.METADATA.value],
+            anns_field=VectorField.VECTOR.value,
+            search_params={"metric_type": "IP"},
+        )
+        return self._process_search_result(results, score)
 
     async def full_text_search(self, query: str) -> list[Document]:
         """全文本搜索"""

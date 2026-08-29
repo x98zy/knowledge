@@ -95,7 +95,7 @@ def register_exception_handler(app: FastAPI) -> None:
 
 def register_router(app: FastAPI) -> None:
     """注册路由"""
-    from router import knowledge_router, search_router, user_router, file_router
+    from router import file_router, knowledge_router, search_router, user_router
 
     app.include_router(knowledge_router)
     app.include_router(search_router)

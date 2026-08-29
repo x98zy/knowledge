@@ -44,6 +44,16 @@ class Document(BaseModel):
     children: list[ChildDocument] | None = None
 
 
+class SearchDocument(BaseModel):
+    id: str | None = None
+
+    page_content: str
+
+    metadata: dict = Field(default_factory=dict)
+    score: float
+    rerank_score: float | None = None
+
+
 class ProcessMode(str, Enum):  # noqa: UP042
     PARAGRAPH = "paragraph"
     QA = "qa"
@@ -74,6 +84,7 @@ class ModelType(str, Enum):  # noqa: UP042
     EMBEDDING = "embedding"
     LLM = "llm"
     OCR = "ocr"
+    RERRANK = "rerank"
 
     @classmethod
     def value_of(cls, model_type: str) -> "ModelType":

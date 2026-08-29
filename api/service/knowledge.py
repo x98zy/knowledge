@@ -13,6 +13,7 @@ from common.error import CustomException
 from config.settings import settings
 from core.utils.page import Page, PaginationInput, paginate
 from extensions.ext_db import db
+from extensions.ext_log import logger
 from extensions.ext_storage import storage
 from models.dataset import Dataset
 from models.document import UploadFile as UploadFileModel
@@ -58,11 +59,12 @@ class KnowledgeService:
                 db.session.add(outbox_msg)
             else:
                 await send_broker_message(
-                    DeleteDatasetMessage(kb_id=knowledge_id).model_dump(), topic=settings.DELETE_DATASET_TOPIC
+                    message=DeleteDatasetMessage(kb_id=knowledge_id).model_dump(), topic=settings.DELETE_DATASET_TOPIC
                 )
             await db.session.commit()
             return True, None
         except Exception:
+            logger.exception("删除知识库失败")
             await db.session.rollback()
             return False, "知识库删除失败"
 
