@@ -1,5 +1,6 @@
 """Abstract interface for document loader implementations."""
 
+import asyncio
 import csv
 
 import pandas as pd
@@ -32,19 +33,19 @@ class CSVExtractor(BaseExtractor):
         self.source_column = source_column
         self.csv_args = csv_args or {}
 
-    def extract(self) -> list[Document]:
+    async def extract(self) -> list[Document]:
         """Load data into document objects."""
         docs = []
         try:
             with open(self._file_path, newline="", encoding=self._encoding) as csvfile:
-                docs = self._read_from_file(csvfile)
+                docs = await asyncio.to_thread(self._read_from_file, csvfile)
         except UnicodeDecodeError as e:
             if self._autodetect_encoding:
-                detected_encodings = detect_file_encodings(self._file_path)
+                detected_encodings = await detect_file_encodings(self._file_path)
                 for encoding in detected_encodings:
                     try:
                         with open(self._file_path, newline="", encoding=encoding.encoding) as csvfile:
-                            docs = self._read_from_file(csvfile)
+                            docs = await asyncio.to_thread(self._read_from_file, csvfile)
                         break
                     except UnicodeDecodeError:
                         continue

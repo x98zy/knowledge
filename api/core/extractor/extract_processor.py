@@ -54,5 +54,9 @@ class ExtractProcessor:
                 from core.extractor.excel_extractor import ExcelExtractor
 
                 return await ExcelExtractor(tmp.name).extract()
+            elif suffix == ".csv":
+                from core.extractor.csv_extractor import CSVExtractor
+
+                return await CSVExtractor(tmp.name, encoding="utf-8").extract()
             else:
                 raise ValueError(f"Unsupported file type: {suffix}")

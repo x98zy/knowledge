@@ -1,7 +1,8 @@
 """Document loader helpers."""
 
-import concurrent.futures
 from typing import NamedTuple, cast
+
+import aiofiles
 
 
 class FileEncoding(NamedTuple):
@@ -15,7 +16,7 @@ class FileEncoding(NamedTuple):
     """The language of the file."""
 
 
-def detect_file_encodings(file_path: str, timeout: int = 5, sample_size: int = 1024 * 1024) -> list[FileEncoding]:
+async def detect_file_encodings(file_path: str, timeout: int = 5, sample_size: int = 1024 * 1024) -> list[FileEncoding]:
     """Try to detect the file encoding.
 
     Returns a list of `FileEncoding` tuples with the detected encodings ordered
@@ -29,19 +30,14 @@ def detect_file_encodings(file_path: str, timeout: int = 5, sample_size: int = 1
     """
     import chardet
 
-    def read_and_detect(file_path: str):
-        with open(file_path, "rb") as f:
+    async def read_and_detect(file_path: str):
+        async with aiofiles.open(file_path, "rb") as f:
             # Read only a sample of the file for encoding detection
             # This prevents timeout on large files while still providing accurate encoding detection
-            rawdata = f.read(sample_size)
+            rawdata = await f.read(sample_size)
         return cast("list[dict]", chardet.detect_all(rawdata))
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future = executor.submit(read_and_detect, file_path)
-        try:
-            encodings = future.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            raise TimeoutError(f"Timeout reached while detecting encoding for {file_path}")
+    encodings = await read_and_detect(file_path)
 
     if all(encoding["encoding"] is None for encoding in encodings):
         raise RuntimeError(f"Could not detect encoding for {file_path}")

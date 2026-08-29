@@ -1,6 +1,6 @@
 """Abstract interface for document loader implementations."""
 
-from pathlib import Path
+import aiofiles
 
 from common.entites import Document
 from core.extractor.extractor_base import BaseExtractor
@@ -25,13 +25,15 @@ class TextExtractor(BaseExtractor):
         """Load from file path."""
         text = ""
         try:
-            text = Path(self._file_path).read_text(encoding=self._encoding)
+            async with aiofiles.open(self._file_path, encoding=self._encoding) as f:
+                text = await f.read()
         except UnicodeDecodeError as e:
             if self._autodetect_encoding:
-                detected_encodings = detect_file_encodings(self._file_path)
+                detected_encodings = await detect_file_encodings(self._file_path)
                 for encoding in detected_encodings:
                     try:
-                        text = Path(self._file_path).read_text(encoding=encoding.encoding)
+                        async with aiofiles.open(self._file_path, encoding=encoding.encoding) as f:
+                            text = await f.read()
                         break
                     except UnicodeDecodeError:
                         continue

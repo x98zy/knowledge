@@ -1,7 +1,8 @@
 """Abstract interface for document loader implementations."""
 
 import re
-from pathlib import Path
+
+import aiofiles
 
 from common.entites import Document
 from core.extractor.extractor_base import BaseExtractor
@@ -33,7 +34,7 @@ class MarkdownExtractor(BaseExtractor):
 
     async def extract(self) -> list[Document]:
         """Load from file path."""
-        tups = self.parse_tups(self._file_path)
+        tups = await self.parse_tups(self._file_path)
         documents = []
         for header, value in tups:
             value = value.strip()
@@ -93,17 +94,19 @@ class MarkdownExtractor(BaseExtractor):
         content = re.sub(pattern, r"\1", content)
         return content
 
-    def parse_tups(self, filepath: str) -> list[tuple[str | None, str]]:
+    async def parse_tups(self, filepath: str) -> list[tuple[str | None, str]]:
         """Parse file into tuples."""
         content = ""
         try:
-            content = Path(filepath).read_text(encoding=self._encoding)
+            async with aiofiles.open(filepath) as f:
+                content = await f.read()
         except UnicodeDecodeError as e:
             if self._autodetect_encoding:
-                detected_encodings = detect_file_encodings(filepath)
+                detected_encodings = await detect_file_encodings(filepath)
                 for encoding in detected_encodings:
                     try:
-                        content = Path(filepath).read_text(encoding=encoding.encoding)
+                        async with aiofiles.open(filepath, encoding=encoding.encoding) as f:
+                            content = await f.read()
                         break
                     except UnicodeDecodeError:
                         continue

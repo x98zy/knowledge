@@ -44,3 +44,18 @@ async def full_text_search(req: SearchRequest):
         rerank_model_provider=req.rerank_model_provider,
     )
     return SuccessResponse(data=data)
+
+
+@search_router.post("/hybrid", description="混合检索")
+async def hybrid_search(req: SearchRequest):
+    """"""
+    data = await SearchService.hybrid_search(
+        dataset_ids=req.dataset_ids,
+        query=req.query,
+        query_filter=req.query_filter,
+        top_k=req.top_k,
+        score=req.score,
+        rerank_model=req.rerank_model,
+        rerank_model_provider=req.rerank_model_provider,
+    )
+    return SuccessResponse(data=data)

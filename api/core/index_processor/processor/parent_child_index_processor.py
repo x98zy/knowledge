@@ -1,5 +1,6 @@
 """Paragraph index processor."""
 
+import asyncio
 import uuid
 
 from common.entites import ChildDocument, Document, ExtractSetting, ParentMode, Rule
@@ -43,55 +44,68 @@ class ParentChildIndexProcessor(BaseIndexProcessor):
                 separator=rules.segmentation.separator,
                 embedding_model_instance=kwargs.get("embedding_model_instance"),
             )
-            for document in documents:
-                if kwargs.get("preview") and len(all_documents) >= 10:
-                    return all_documents
-                # document clean
-                document_text = CleanProcessor.clean(document.page_content, process_rule)
-                document.page_content = document_text
-                # parse document to nodes
-                document_nodes = splitter.split_documents([document])
-                split_documents = []
-                for document_node in document_nodes:
-                    if document_node.page_content.strip():
-                        doc_id = str(uuid.uuid4())
-                        hash = generate_text_hash(document_node.page_content)
-                        document_node.metadata["doc_id"] = doc_id
-                        document_node.metadata["doc_hash"] = hash
-                        # delete Splitter character
-                        page_content = document_node.page_content
-                        if page_content.startswith(".") or page_content.startswith("。"):
-                            page_content = page_content[1:].strip()
-                        else:
-                            page_content = page_content
-                        if len(page_content) > 0:
-                            document_node.page_content = page_content
-                            # parse document to child nodes
-                            child_nodes = self._split_child_nodes(
-                                document_node, rules, process_rule.get("mode"), kwargs.get("embedding_model_instance")
-                            )
-                            document_node.children = child_nodes
-                            split_documents.append(document_node)
-                all_documents.extend(split_documents)
-        elif rules.parent_mode == ParentMode.FULL_DOC:
-            page_content = "\n".join([document.page_content for document in documents])
-            document = Document(page_content=page_content, metadata=documents[0].metadata)
-            # parse document to child nodes
-            child_nodes = self._split_child_nodes(
-                document, rules, process_rule.get("mode"), kwargs.get("embedding_model_instance")
+            # 清洗与父子分段是 CPU 密集的同步操作，放线程池执行避免阻塞事件循环导致 Kafka 心跳超时
+            return await asyncio.to_thread(
+                self._clean_and_split_paragraph, documents, splitter, rules, process_rule, kwargs
             )
-            if kwargs.get("preview"):  # noqa: SIM102
-                if len(child_nodes) > settings.CHILD_CHUNKS_PREVIEW_NUMBER:
-                    child_nodes = child_nodes[: settings.CHILD_CHUNKS_PREVIEW_NUMBER]
-
-            document.children = child_nodes
-            doc_id = str(uuid.uuid4())
-            hash = generate_text_hash(document.page_content)
-            document.metadata["doc_id"] = doc_id
-            document.metadata["doc_hash"] = hash
-            all_documents.append(document)
+        elif rules.parent_mode == ParentMode.FULL_DOC:
+            return await asyncio.to_thread(self._split_full_doc, documents, rules, process_rule, kwargs)
 
         return all_documents
+
+    def _clean_and_split_paragraph(
+        self, documents: list[Document], splitter, rules: Rule, process_rule: dict, kwargs: dict
+    ) -> list[Document]:
+        all_documents: list[Document] = []
+        for document in documents:
+            if kwargs.get("preview") and len(all_documents) >= 10:
+                return all_documents
+            # document clean
+            document_text = CleanProcessor.clean(document.page_content, process_rule)
+            document.page_content = document_text
+            # parse document to nodes
+            document_nodes = splitter.split_documents([document])
+            split_documents = []
+            for document_node in document_nodes:
+                if document_node.page_content.strip():
+                    doc_id = str(uuid.uuid4())
+                    hash = generate_text_hash(document_node.page_content)
+                    document_node.metadata["doc_id"] = doc_id
+                    document_node.metadata["doc_hash"] = hash
+                    # delete Splitter character
+                    page_content = document_node.page_content
+                    if page_content.startswith(".") or page_content.startswith("。"):
+                        page_content = page_content[1:].strip()
+                    else:
+                        page_content = page_content
+                    if len(page_content) > 0:
+                        document_node.page_content = page_content
+                        # parse document to child nodes
+                        child_nodes = self._split_child_nodes(
+                            document_node, rules, process_rule.get("mode"), kwargs.get("embedding_model_instance")
+                        )
+                        document_node.children = child_nodes
+                        split_documents.append(document_node)
+            all_documents.extend(split_documents)
+        return all_documents
+
+    def _split_full_doc(self, documents: list[Document], rules: Rule, process_rule: dict, kwargs: dict) -> list[Document]:
+        page_content = "\n".join([document.page_content for document in documents])
+        document = Document(page_content=page_content, metadata=documents[0].metadata)
+        # parse document to child nodes
+        child_nodes = self._split_child_nodes(
+            document, rules, process_rule.get("mode"), kwargs.get("embedding_model_instance")
+        )
+        if kwargs.get("preview"):  # noqa: SIM102
+            if len(child_nodes) > settings.CHILD_CHUNKS_PREVIEW_NUMBER:
+                child_nodes = child_nodes[: settings.CHILD_CHUNKS_PREVIEW_NUMBER]
+
+        document.children = child_nodes
+        doc_id = str(uuid.uuid4())
+        hash = generate_text_hash(document.page_content)
+        document.metadata["doc_id"] = doc_id
+        document.metadata["doc_hash"] = hash
+        return [document]
 
     async def load(
         self, dataset: Dataset, documents: list[Document], with_keywords: bool = True, **kwargs

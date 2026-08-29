@@ -75,3 +75,7 @@ class VectorFactory:
 
     async def full_text_search(self, query: str, top_k: int, score: float, query_filter: dict) -> list[SearchDocument]:
         return await self.vector.full_text_search(query, top_k, score, query_filter)
+
+    async def hybrid_search(self, query: str, top_k: int, score: float, query_filter: dict) -> list[SearchDocument]:
+        query_embedding = await self.embedding_factory.embed(query)
+        return await self.vector.hybrid_search(query, query_embedding, top_k, score, query_filter)

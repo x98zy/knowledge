@@ -1,5 +1,6 @@
 """Paragraph index processor."""
 
+import asyncio
 import logging
 import re
 import uuid
@@ -45,28 +46,11 @@ class QAIndexProcessor(BaseIndexProcessor):
         )
 
         # Split the text documents into nodes.
-        all_documents: list[Document] = []
+        # 清洗与分段是 CPU 密集的同步操作，放线程池执行避免阻塞事件循环导致 Kafka 心跳超时
+        all_documents = await asyncio.to_thread(
+            self._clean_and_split, documents, splitter, kwargs.get("process_rule") or {}
+        )
         all_qa_documents: list[Document] = []
-        for document in documents:
-            # document clean
-            document_text = CleanProcessor.clean(document.page_content, kwargs.get("process_rule") or {})
-            document.page_content = document_text
-
-            # parse document to nodes
-            document_nodes = splitter.split_documents([document])
-            split_documents = []
-            for document_node in document_nodes:
-                if document_node.page_content.strip():
-                    doc_id = str(uuid.uuid4())
-                    hash = generate_text_hash(document_node.page_content)
-                    if document_node.metadata is not None:
-                        document_node.metadata["doc_id"] = doc_id
-                        document_node.metadata["doc_hash"] = hash
-                    # delete Splitter character
-                    page_content = document_node.page_content
-                    document_node.page_content = remove_leading_symbols(page_content)
-                    split_documents.append(document_node)
-            all_documents.extend(split_documents)
         if preview:
             await self._format_qa_document(
                 all_documents[0],
@@ -102,6 +86,30 @@ class QAIndexProcessor(BaseIndexProcessor):
         reranking_model: dict,
     ):
         pass
+
+    def _clean_and_split(self, documents: list[Document], splitter, process_rule: dict) -> list[Document]:
+        all_documents: list[Document] = []
+        for document in documents:
+            # document clean
+            document_text = CleanProcessor.clean(document.page_content, process_rule)
+            document.page_content = document_text
+
+            # parse document to nodes
+            document_nodes = splitter.split_documents([document])
+            split_documents = []
+            for document_node in document_nodes:
+                if document_node.page_content.strip():
+                    doc_id = str(uuid.uuid4())
+                    hash = generate_text_hash(document_node.page_content)
+                    if document_node.metadata is not None:
+                        document_node.metadata["doc_id"] = doc_id
+                        document_node.metadata["doc_hash"] = hash
+                    # delete Splitter character
+                    page_content = document_node.page_content
+                    document_node.page_content = remove_leading_symbols(page_content)
+                    split_documents.append(document_node)
+            all_documents.extend(split_documents)
+        return all_documents
 
     async def _format_qa_document(self, document_node, all_qa_documents, document_language):
         format_documents = []

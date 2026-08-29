@@ -1,5 +1,6 @@
 """Paragraph index processor."""
 
+import asyncio
 import uuid
 
 from common.entites import Document, ExtractSetting, Rule
@@ -50,10 +51,14 @@ class ParagraphIndexProcessor(BaseIndexProcessor):
             separator=rules.segmentation.separator,
             embedding_model_instance=kwargs.get("embedding_model_instance"),
         )
+        # 清洗与分段是 CPU 密集的同步操作，放线程池执行避免阻塞事件循环导致 Kafka 心跳超时
+        return await asyncio.to_thread(self._clean_and_split, documents, splitter, process_rule)
+
+    def _clean_and_split(self, documents: list[Document], splitter, process_rule) -> list[Document]:
         all_documents = []
         for document in documents:
             # document clean
-            document_text = CleanProcessor.clean(document.page_content, kwargs.get("process_rule", {}))
+            document_text = CleanProcessor.clean(document.page_content, process_rule)
             document.page_content = document_text
             # parse document to nodes
             document_nodes = splitter.split_documents([document])

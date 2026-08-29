@@ -1,6 +1,6 @@
 from typing import Any
 
-from pymilvus import AsyncMilvusClient
+from pymilvus import AnnSearchRequest, AsyncMilvusClient, WeightedRanker
 from pymilvus.milvus_client import IndexParams
 from uuid_extensions import uuid7
 
@@ -126,7 +126,6 @@ class MilvusVector(VectorBase):
         docs: list[SearchDocument] = []
         for hits in results:
             for hit in hits:
-                # IP 度量下 distance 为相似度，越大越相关，低于阈值直接过滤
                 if hit["distance"] < score:
                     continue
                 entity = hit.get("entity", {})
@@ -166,6 +165,33 @@ class MilvusVector(VectorBase):
             limit=max(1, top_k),
             output_fields=[VectorField.ID.value, VectorField.CONTENT.value, VectorField.METADATA.value],
             anns_field=VectorField.SPARSE_VECTOR.value,
+            search_params={"metric_type": "BM25"},
+        )
+        return self._process_search_result(results, score)
+
+    async def hybrid_search(
+        self, query: str, query_embedding: list[float], top_k: int, score: float, query_filter: dict
+    ) -> list[SearchDocument]:
+        vector_search = AnnSearchRequest(
+            data=[query_embedding],
+            anns_field=VectorField.VECTOR.value,
+            limit=max(1, top_k),
+            param={"metric_type": "IP"},
+        )
+        full_text_search = AnnSearchRequest(
+            data=[query],
+            anns_field=VectorField.SPARSE_VECTOR.value,
+            limit=max(1, top_k),
+            param={"metric_type": "BM25"},
+        )
+        # WeightedRanker 会将BM25d得到分数归一化处理至0到1之间，所以混合检索出来得到的分数会比全文检索得到的分数要低
+        rerank = WeightedRanker(0.5, 0.5)
+        results = await self.client.hybrid_search(
+            self.collection_name,
+            [vector_search, full_text_search],
+            ranker=rerank,
+            limit=max(1, top_k),
+            output_fields=[VectorField.ID.value, VectorField.CONTENT.value, VectorField.METADATA.value],
         )
         return self._process_search_result(results, score)
 
