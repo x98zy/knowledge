@@ -40,6 +40,7 @@ class FileSegments(BaseModel):
     metadata_: Mapped[dict] = Column(JSON, nullable=False, comment="片段元数据")
     point_id: Mapped[str] = Column(String(255), nullable=True, comment="向量库id")
     status: Mapped[str] = Column(String(50), nullable=False, comment="片段处理状态", default="waiting")
+    position: Mapped[int] = Column(BigInteger, nullable=False, comment="分段索引")
 
 
 class ChildSegment(BaseModel):
@@ -52,6 +53,7 @@ class ChildSegment(BaseModel):
     metadata_: Mapped[dict] = Column(JSON, nullable=False, comment="片段元数据")
     point_id: Mapped[str] = Column(String(255), nullable=True, comment="向量库id")
     status: Mapped[str] = Column(String(50), nullable=False, comment="片段处理状态", default="waiting")
+    position: Mapped[int] = Column(BigInteger, nullable=False, comment="分段索引")
 
 
 class UploadFile(BaseModel):

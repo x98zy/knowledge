@@ -60,7 +60,15 @@ async def delete_file(file_id: str, current_user: CurrentUser = Depends(get_curr
     return SuccessResponse(message="文件删除成功", data={"success": success})
 
 
-@file_router.delete("/{file_id}/delete", summary="删除文件（已废弃，请使用 DELETE /file/{file_id}）", include_in_schema=False)
+@file_router.delete(
+    "/{file_id}/delete", summary="删除文件（已废弃，请使用 DELETE /file/{file_id}）", include_in_schema=False
+)
 async def delete_file_deprecated(file_id: str, current_user: CurrentUser = Depends(get_current_user)):
     """向后兼容：旧路径 /file/{file_id}/delete 映射到新实现，避免前端尚未切换时报错。"""
     return await delete_file(file_id=file_id, current_user=current_user)
+
+
+@file_router.get("/{file_id}/segments", summary="获取文件的分段列表")
+async def get_file_segments(file_id: str, current_user: CurrentUser = Depends(get_current_user)):
+    data = await FileService.get_file_segments(file_id=file_id, user_id=current_user.user_id)
+    return SuccessResponse(message="获取文件分段成功", data=data)

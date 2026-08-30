@@ -128,3 +128,29 @@ export async function deleteKnowledgeFile(fileId) {
   const res = await api.delete(`/file/${fileId}`)
   return res.data
 }
+
+/**
+ * 获取指定文件的分段详情（含父子分段层级）。
+ *
+ * 后端统一用 SuccessResponse(JSONResponse) 封装：
+ *   { success:true, code:200, message:"...", data:[...] }
+ * 其中 data 才是分段数组，数组元素结构：
+ *   { id, content, position, child_segments: [{ id, content, position }] }
+ *
+ * 见 api/router/v1/file.py -> get_file_segments -> api/service/file.py::FileService.get_file_segments
+ * 见 api/common/response.py SuccessResponse / ResponseSchema
+ *
+ * 本函数直接返回解包后的分段数组（与其他 api 方法 getKnowledgeFileList / getKnowledgeList 一致）。
+ */
+export async function getFileSegments(fileId) {
+  const res = await api.get(`/file/${fileId}/segments`)
+  // axios res.data 是 SuccessResponse 本体；真正的分段数组在 res.data.data
+  const payload = res.data ?? {}
+  const list = payload.data
+  if (!Array.isArray(list)) {
+    // 兼容未来字段变化或旧格式：若 payload 本身就是数组也直接用
+    if (Array.isArray(payload)) return payload
+    return []
+  }
+  return list
+}

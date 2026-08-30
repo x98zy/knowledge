@@ -61,8 +61,19 @@
             <span v-else style="color: #c0c4cc;">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
+            <el-button
+              type="primary"
+              link
+              size="small"
+              :disabled="row.status !== 'success'"
+              @click="goSegmentDetail(row)"
+            >
+              <el-icon style="vertical-align: -2px;"><List /></el-icon>
+              分段详情
+            </el-button>
+            <el-divider direction="vertical" />
             <el-button
               type="danger"
               link
@@ -190,7 +201,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Search, Upload, Delete } from '@element-plus/icons-vue'
+import { ArrowLeft, Search, Upload, Delete, List } from '@element-plus/icons-vue'
 import { getKnowledgeFileList, uploadFile, createKnowledgeFile, deleteKnowledgeFile } from '../../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -267,6 +278,15 @@ function handlePageChange() {
 
 function goBack() {
   router.push({ name: 'KnowledgeList' })
+}
+
+/** 跳转到分段详情：携带 knowledge_id 方便点返回按钮回到该文件列表页 */
+function goSegmentDetail(row) {
+  router.push({
+    name: 'KnowledgeFileSegments',
+    params: { fileId: row.id },
+    query: { knowledge_id: knowledgeId, file_name: row.file_name },
+  })
 }
 
 // ---------- Upload handlers ----------

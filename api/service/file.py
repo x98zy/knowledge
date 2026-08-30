@@ -21,6 +21,49 @@ from workers.entites import ExtracMessage
 
 class FileService:
     @classmethod
+    async def get_file_segments(cls, file_id: str, user_id: str) -> list[dict]:
+        user_query = select(User).filter(User.id == user_id, User.deleted == 0)
+        user = await db.session.execute(user_query)
+        user = user.scalars().first()
+        if not user:
+            raise CustomException("当前用户不存在")
+        file_query = select(KbFile).where(KbFile.id == file_id, KbFile.deleted == 0)
+        file = await db.session.execute(file_query)
+        file = file.scalars().first()
+        if not file:
+            raise CustomException("文件不存在")
+        segment_query = (
+            select(FileSegments)
+            .where(FileSegments.file_id == file_id, FileSegments.deleted == 0)
+            .order_by(FileSegments.position.asc())
+        )
+        segments = await db.session.execute(segment_query)
+        segments = segments.scalars().all()
+
+        child_segment_query = (
+            select(ChildSegment)
+            .where(ChildSegment.file_id == file_id, ChildSegment.deleted == 0)
+            .order_by(ChildSegment.position.asc())
+        )
+        child_segments = await db.session.execute(child_segment_query)
+        child_segments = child_segments.scalars().all()
+        ret = []
+        for segment in segments:
+            segment_data = {
+                "id": segment.id,
+                "content": segment.content,
+                "position": segment.position,
+                "child_segments": [],
+            }
+            for child_segment in child_segments:
+                if child_segment.parent_id == segment.id:
+                    segment_data["child_segments"].append(
+                        {"id": child_segment.id, "content": child_segment.content, "position": child_segment.position}
+                    )
+            ret.append(segment_data)
+        return ret
+
+    @classmethod
     async def delete_file(cls, file_id: str, user_id: str) -> bool:
         try:
             user_query = select(User).filter(User.id == user_id, User.deleted == 0)

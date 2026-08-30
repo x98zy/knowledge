@@ -31,6 +31,14 @@ const routes = [
           meta: { title: '知识库文件', icon: 'Document' },
         },
         {
+          path: 'knowledge/files/:fileId/segments',
+          name: 'KnowledgeFileSegments',
+          component: () => import('../views/knowledge/SegmentDetail.vue'),
+          meta: { title: '分段详情', icon: 'Tickets' },
+          // query 支持传入 knowledge_id，用于「返回文件列表」时回到正确的知识库
+          props: (route) => ({ fileId: route.params.fileId, knowledgeId: route.query.knowledge_id }),
+        },
+        {
           path: 'profile',
           name: 'Profile',
           component: () => import('../views/Profile.vue'),

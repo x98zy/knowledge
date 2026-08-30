@@ -59,6 +59,7 @@ async def extract(message: ExtracMessage):
             document.metadata = message.metadata or {}
         segments = []
         child_docs = []
+        position = 1
         for doc in tranform_documents:
             segment = FileSegments(
                 id=str(uuid7()),
@@ -67,10 +68,13 @@ async def extract(message: ExtracMessage):
                 content=doc.page_content,
                 answer=doc.metadata.get("answer", ""),
                 metadata_=doc.metadata,
+                position=position,
             )
+            position += 1
             segments.append(segment)
             doc.id = segment.id
             if doc.children:
+                child_position = 1
                 for child_doc in doc.children:
                     child_segment = ChildSegment(
                         id=str(uuid7()),
@@ -79,7 +83,9 @@ async def extract(message: ExtracMessage):
                         dataset_id=kb_file.dataset_id,
                         content=child_doc.page_content,
                         metadata_=child_doc.metadata,
+                        position=child_position,
                     )
+                    child_position += 1
                     child_docs.append(child_segment)
                     child_doc.id = child_segment.id
         if segments:
