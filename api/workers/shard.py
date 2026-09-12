@@ -22,6 +22,10 @@ from .entites import DeleteDatasetMessage
     max_workers=settings.DELETE_DATASET_MAX_WORKERS,
     # NACK_ON_ERROR 保证消费失败消息会重新投递
     ack_policy=AckPolicy.NACK_ON_ERROR,
+    # 放宽 aiokafka 会话/心跳/轮询超时，避免长任务期间被 coordinator 踢出组触发 rebalance 风暴
+    session_timeout_ms=settings.BROKER_SESSION_TIMEOUT_MS,
+    heartbeat_interval_ms=settings.BROKER_HEARTBEAT_INTERVAL_MS,
+    max_poll_interval_ms=settings.BROKER_MAX_POLL_INTERVAL_MS,
 )
 async def delete_dataset(message: DeleteDatasetMessage):
     try:
@@ -44,7 +48,8 @@ async def delete_dataset(message: DeleteDatasetMessage):
         await db.session.execute(delete_query)
         await db.session.execute(delete_query_1)
         await db.session.commit()
-        await vector.drop_collection()
+        # 限制 drop 超时，避免 Milvus 异常时 grpc 无限挂起占住 worker
+        await vector.drop_collection(timeout=60)
         # TODO 这里可以加一个兜底补偿机制，加一个30分钟之后的定时触发任务，去检查向量库记录有没有被真正删除，没有删除再尝试删除
     except Exception as e:
         logger.exception("删除知识库失败")

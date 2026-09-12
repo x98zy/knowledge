@@ -12,6 +12,7 @@ dependencies = [
     "chardet>=7.6.0",
     "fastapi>=0.136.1",
     "faststream[cli,kafka]>=0.7.2",
+    "httpx>=0.28.1",
     "jieba>=0.42.1",
     "jwt>=1.4.0",
     "loguru>=0.7.3",

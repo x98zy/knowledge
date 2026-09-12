@@ -4,6 +4,7 @@ import tempfile
 from sqlalchemy import select
 
 from common.entites import Document, ExtractSetting
+from config.settings import settings
 from extensions.ext_db import db
 from extensions.ext_storage import storage
 from models.document import UploadFile
@@ -58,5 +59,9 @@ class ExtractProcessor:
                 from core.extractor.csv_extractor import CSVExtractor
 
                 return await CSVExtractor(tmp.name, encoding="utf-8").extract()
+            elif suffix in [".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg", ".html", ".wps"]:
+                from core.extractor.textin_extractor import TextinExtractor
+
+                return await TextinExtractor(tmp.name, settings.TEXTIN_APP_ID, settings.TEXTIN_SECRET_CODE).extract()
             else:
                 raise ValueError(f"Unsupported file type: {suffix}")

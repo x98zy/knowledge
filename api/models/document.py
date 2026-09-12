@@ -64,3 +64,4 @@ class UploadFile(BaseModel):
     file_key: Mapped[str] = Column(String(255), nullable=False, comment="文件OSS键名")
     file_size: Mapped[int] = Column(BigInteger, nullable=False, comment="文件大小")
     ext: Mapped[str] = Column(String(255), nullable=False, comment="文件扩展名")
+    parse_file_key: Mapped[str] = Column(String(255), nullable=True, comment="解析后的文件OSS键名")

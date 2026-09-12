@@ -63,8 +63,8 @@ class VectorFactory:
             logger.info("Embedding %s texts took %s s", len(documents), time.time() - start)
         return all_point_ids
 
-    async def drop_collection(self):
-        await self.vector.drop_collection()
+    async def drop_collection(self, timeout: float | None = None):
+        await self.vector.drop_collection(timeout=timeout)
 
     async def delete_by_ids(self, ids: list[str]):
         await self.vector.delete(ids)

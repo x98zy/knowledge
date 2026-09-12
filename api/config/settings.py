@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     BROKER_AUTO_OFFSET_RESET: str = Field(default="latest", description="消息队列自动偏移重置策略")
     BROKER_GROUP_ID: str = Field(default="knowledge-worker", description="消息队列消费者组ID")
     BROKER_MAX_PULL_RECORDS: int = Field(default=100, description="消息队列最大拉取记录数")
+    # aiokafka 会话/心跳/轮询超时：默认 session_timeout_ms=10s 过于敏感，
+    # embed/extract 处理大文件时事件循环瞬时繁忙（或 WSL2 时钟漂移、coordinator 抖动）
+    # 就会把成员踢出组（UnknownMemberIdError）触发全组 rebalance 风暴，这里放宽到 60s/15min
+    BROKER_SESSION_TIMEOUT_MS: int = Field(default=60000, description="Kafka 消费者会话超时(毫秒)")
+    BROKER_HEARTBEAT_INTERVAL_MS: int = Field(default=10000, description="Kafka 消费者心跳间隔(毫秒)，需小于会话超时的1/3")
+    BROKER_MAX_POLL_INTERVAL_MS: int = Field(default=900000, description="Kafka 两次 poll 最大间隔(毫秒)，需大于单条消息最长处理耗时")
     EXTRACTOR_TOPIC: str = Field(default="extract", description="提取器消息队列主题")
     EXTRACT_MAX_WORKERS: int = Field(default=5, description="提取器最大工作线程数")
 
@@ -72,6 +78,10 @@ class Settings(BaseSettings):
 
     # 是否开启broker outbox任务
     START_BROKER_OUTBOX: bool = Field(default=False, description="是否开启broker outbox任务，确保broker消息正确发送")
+
+    # 合合文档解析配置,参考https://www.textin.com/console/dashboard/setting
+    TEXTIN_APP_ID: str = Field(..., description="合合解析app_id")
+    TEXTIN_SECRET_CODE: str = Field(..., description="合合解析secret_code")
 
     @model_validator(mode="before")
     @classmethod

@@ -20,6 +20,10 @@ from .entites import EmbedMessage, ExtracMessage
     auto_offset_reset=settings.BROKER_AUTO_OFFSET_RESET,
     max_poll_records=settings.BROKER_MAX_PULL_RECORDS,
     max_workers=settings.EXTRACT_MAX_WORKERS,
+    # 放宽 aiokafka 会话/心跳/轮询超时，避免长任务期间被 coordinator 踢出组触发 rebalance 风暴
+    session_timeout_ms=settings.BROKER_SESSION_TIMEOUT_MS,
+    heartbeat_interval_ms=settings.BROKER_HEARTBEAT_INTERVAL_MS,
+    max_poll_interval_ms=settings.BROKER_MAX_POLL_INTERVAL_MS,
 )
 async def extract(message: ExtracMessage):
     try:

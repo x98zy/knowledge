@@ -199,9 +199,9 @@ class MilvusVector(VectorBase):
         """删除文档向量"""
         await self.client.delete(collection_name=self.collection_name, ids=document_ids, timeout=30)
 
-    async def drop_collection(self) -> None:
-        """删除向量集合"""
-        await self.client.drop_collection(self.collection_name)
+    async def drop_collection(self, timeout: float | None = None) -> None:
+        """删除向量集合，timeout=None 表示不限制；建议生产环境传入秒数避免 grpc 无限挂起"""
+        await self.client.drop_collection(self.collection_name, timeout=timeout)
 
     async def embedding(self, text: list[str]) -> list[list[float]]:
         """文本文本的向量表示"""
