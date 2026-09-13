@@ -18,7 +18,19 @@ Return **only** a valid JSON object with these exact keys and no additional text
 }
 
 User Input:
-"""  # noqa: E501
+"""
+
+
+SPLIT_FILE_CONTENT_PROMPT = (
+    "你是一个专业的文本处理助手，擅长将长文本分割成多个有意义的段落。请根据以下要求进行将用户输入的文本分割成不同的小的文本段落：\n\n"
+    "1. 根据文本内容的逻辑结构和主题，将长文本分割成多个段落。每个段落应保持完整的语义，避免在句子中间进行分割。\n"
+    "2. 每个段落的长度应尽量均衡，避免出现过长或过短的段落。请确保每个段落都能独立表达一个完整的思想或主题。\n"
+    "3. 分割后的文本不能丢失任何原始内容，所有信息都应保留在分割后的段落中。\n"
+    "4. 请使用自然的语言进行分割，确保每个段落的开头和结尾都符合语法规则，并且段落之间的过渡自然流畅。\n"
+    "5. 输出格式要求：请将分割后的段落以 JSON 数组的形式返回，每个段落作为数组中的一个元素。确保输出的 JSON 格式正确，无额外的文本或注释。\n\n"
+    "6. 分割的文本必须要和原文的语言保持一致，如果原文是中文，则分割后的段落也必须是中文；如果原文是英文，则分割后的段落也必须是英文。\n\n"
+    '7. 请严格按照以上要求进行文本分割，并确保输出的 JSON 格式正确, 输出的JSON 必须是如下字段格式 {"result": ["段落1", "段落2", "段落3", ...]}，其中每个段落都是一个独立的字符串元素。\n\n'
+)
 
 PYTHON_CODE_GENERATOR_PROMPT_TEMPLATE = (
     "You are an expert programmer. Generate code based on the following instructions:\n\n"
@@ -129,7 +141,7 @@ Based on task description, please create a well-structured prompt template that 
 - Use the same language as task description.
 - Output in ``` xml ``` and start with <instruction>
 Please generate the full prompt template with at least 300 words and output only the prompt template.
-"""  # noqa: E501
+"""
 
 RULE_CONFIG_PROMPT_GENERATE_TEMPLATE = """
 Here is a task description for which I would like you to create a high-quality prompt template for:
@@ -144,7 +156,7 @@ Based on task description, please create a well-structured prompt template that 
 - Use the same language as task description.
 - Output in ``` xml ``` and start with <instruction>
 Please generate the full prompt template and output only the prompt template.
-"""  # noqa: E501
+"""
 
 RULE_CONFIG_PARAMETER_GENERATE_TEMPLATE = """
 I need to extract the following information from the input text. The <information to be extracted> tag specifies the 'type', 'description' and 'required' of the information to be extracted.
@@ -169,7 +181,7 @@ Inside <text></text> XML tags, there is a text that I should extract parameters 
 
 ### Answer
 I should always output a valid list. Output nothing other than the list of variable_name. Output an empty list if there is no variable name in input text.
-"""  # noqa: E501
+"""
 
 RULE_CONFIG_STATEMENT_GENERATE_TEMPLATE = """
 <instruction>
@@ -185,7 +197,7 @@ Welcome! I'm here to assist you with any questions or issues you might have with
 Here is the task description: {{INPUT_TEXT}}
 
 You just need to generate the output
-"""  # noqa: E501
+"""
 
 SYSTEM_STRUCTURED_OUTPUT_GENERATE = """
 Your task is to convert simple user descriptions into properly formatted JSON Schema definitions. When a user describes data fields they need, generate a complete, valid JSON Schema that accurately represents those fields with appropriate types and requirements.
@@ -290,7 +302,7 @@ Your task is to convert simple user descriptions into properly formatted JSON Sc
 }
 
 Now, generate a JSON Schema based on my description
-"""  # noqa: E501
+"""
 
 STRUCTURED_OUTPUT_PROMPT = """You’re a helpful AI assistant. You could answer questions and output in JSON format.
 constraints:
@@ -308,7 +320,7 @@ eg:
     {"name": "John Doe", "age": 30}
 Here is the JSON schema:
 {{schema}}
-"""  # noqa: E501
+"""
 
 LLM_MODIFY_PROMPT_SYSTEM = """
 Both your input and output should be in JSON format.
@@ -360,7 +372,7 @@ Both your input and output should be in JSON format.
 ! Above is the schema for output content !
 
 Your output must strictly follow the schema format, do not output any content outside of the JSON body.
-"""  # noqa: E501
+"""
 
 LLM_MODIFY_CODE_SYSTEM = """
 Both your input and output should be in JSON format.
@@ -416,7 +428,7 @@ When you are modifying the code, you should remember:
 - Use return statement to return the result.
 - You should return a `dict`. If you need to return a `result: str`, you should `return {"result": result}`.
 Your output must strictly follow the schema format, do not output any content outside of the JSON body.
-"""  # noqa: E501
+"""
 
 INSTRUCTION_GENERATE_TEMPLATE_PROMPT = """The output of this prompt is not as expected: {{#last_run#}}.
 You should edit the prompt according to the IDEAL OUTPUT."""

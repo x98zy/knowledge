@@ -1,16 +1,14 @@
 """StructuredProcessor index processor."""
 
+import json
 import logging
-import uuid
 
 from common.entites import Document, ExtractSetting
-from core.cleaner.clean_processor import CleanProcessor
 from core.extractor.extract_processor import ExtractProcessor
 from core.index_processor.index_processor_base import BaseIndexProcessor
+from core.llm_generator.llm_generator import LLMGenerator
 from core.vectordb.factory import VectorFactory
 from models.dataset import Dataset
-from utils.helper import generate_text_hash
-from utils.text_process_utils import remove_leading_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -26,34 +24,46 @@ class StructuredProcessor(BaseIndexProcessor):
         return text_docs
 
     async def transform(self, documents: list[Document], **kwargs) -> list[Document]:
-        pass
-
-    def _clean_and_split(self, documents: list[Document], splitter, process_rule) -> list[Document]:
+        llm_generator = LLMGenerator()
         all_documents = []
         for document in documents:
-            # document clean
-            document_text = CleanProcessor.clean(document.page_content, process_rule)
-            document.page_content = document_text
-            # parse document to nodes
-            document_nodes = splitter.split_documents([document])
-            split_documents = []
-            for document_node in document_nodes:
-                if document_node.page_content.strip():
-                    doc_id = str(uuid.uuid4())
-                    hash = generate_text_hash(document_node.page_content)
-                    if document_node.metadata is not None:
-                        document_node.metadata["doc_id"] = doc_id
-                        document_node.metadata["doc_hash"] = hash
-                    # delete Splitter character
-                    page_content = remove_leading_symbols(document_node.page_content).strip()
-                    if len(page_content) > 0:
-                        document_node.page_content = page_content
-                        split_documents.append(document_node)
-            all_documents.extend(split_documents)
+            llm_resp = await llm_generator.split_file_content(document.page_content)
+            paragraphs = self.get_paragraphs_from_llm_response(llm_resp)
+            for paragraph in paragraphs:
+                # Create new documents for each paragraph
+                new_document = Document(page_content=paragraph, metadata=document.metadata.copy())
+                all_documents.append(new_document)
         return all_documents
+
+    def get_paragraphs_from_llm_response(self, llm_resp: str) -> list[str]:
+        try:
+            resp_json = json.loads(llm_resp)
+            if "result" in resp_json and isinstance(resp_json["result"], list):
+                return resp_json["result"]
+            else:
+                logger.error("Invalid LLM response format: %s", llm_resp)
+                return []
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse LLM response as JSON: %s, error: %s", llm_resp, str(e))
+            return []
 
     async def load(
         self, dataset: Dataset, documents: list[Document], with_keywords: bool = True, **kwargs
     ) -> list[str]:
         vector = VectorFactory(dataset)
         return await vector.create(documents)
+
+    def clean(self, dataset: Dataset, node_ids: list[str] | None, with_keywords: bool = True, **kwargs):
+        pass
+
+    def retrieve(
+        self,
+        retrieval_method: str,
+        query: str,
+        dataset: Dataset,
+        top_k: int,
+        score_threshold: float,
+        reranking_model: dict,
+    ) -> list[Document]:
+        # Set search parameters.
+        pass

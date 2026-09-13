@@ -138,56 +138,65 @@
           </el-upload>
         </el-form-item>
 
-        <!-- 分段模式 -->
-        <el-form-item label="分段模式" prop="segment_mode">
-          <el-select v-model="uploadForm.segment_mode" placeholder="请选择分段模式" style="width: 100%">
-            <el-option label="通用分段" value="text_model" />
-            <el-option label="QA分段" value="qa_model" />
-            <el-option label="父子分段" value="hierarchical_model" />
-          </el-select>
+        <!-- 智能分段开关 -->
+        <el-form-item label="智能分段" prop="enable_semantic">
+          <el-switch v-model="uploadForm.enable_semantic" />
+          <span class="semantic-tip">开启后由大模型自动进行语义分割，无需配置分段模式与规则</span>
         </el-form-item>
 
-        <!-- 预处理规则（多选） -->
-        <el-form-item label="预处理规则" prop="pre_rule">
-          <el-checkbox-group v-model="uploadForm.pre_rule_list">
-            <el-checkbox label="remove_urls_emails">去除URL链接</el-checkbox>
-            <el-checkbox label="remove_extra_spaces">去除多余空格</el-checkbox>
-          </el-checkbox-group>
-        </el-form-item>
-
-        <!-- 分段最大长度 -->
-        <el-form-item label="分段最大长度" prop="max_tokens">
-          <el-input-number v-model="uploadForm.max_tokens" :min="1" :max="10000" />
-        </el-form-item>
-
-        <!-- 分段重叠长度 -->
-        <el-form-item label="分段重叠长度" prop="overlap">
-          <el-input-number v-model="uploadForm.overlap" :min="0" :max="1000" />
-        </el-form-item>
-
-        <!-- 分段分隔符 -->
-        <el-form-item label="分段分隔符" prop="delimiter">
-          <el-input v-model="uploadForm.delimiter" placeholder="如 \n\n" />
-        </el-form-item>
-
-        <!-- 以下字段仅在「父子分段」时显示 -->
-        <template v-if="uploadForm.segment_mode === 'hierarchical_model'">
-          <el-divider>父子分段配置</el-divider>
-          <el-form-item label="父分段规则" prop="parent_mode">
-            <el-select v-model="uploadForm.parent_mode" placeholder="请选择父分段规则" style="width: 100%">
-              <el-option label="全文" value="full-doc" />
-              <el-option label="段落" value="paragraph" />
+        <!-- 以下分段配置在开启智能分段时隐藏 -->
+        <template v-if="!uploadForm.enable_semantic">
+          <!-- 分段模式 -->
+          <el-form-item label="分段模式" prop="segment_mode">
+            <el-select v-model="uploadForm.segment_mode" placeholder="请选择分段模式" style="width: 100%">
+              <el-option label="通用分段" value="text_model" />
+              <el-option label="QA分段" value="qa_model" />
+              <el-option label="父子分段" value="hierarchical_model" />
             </el-select>
           </el-form-item>
-          <el-form-item label="子分段分隔符" prop="child_delimiter">
-            <el-input v-model="uploadForm.child_delimiter" placeholder="如 \n" />
+
+          <!-- 预处理规则（多选） -->
+          <el-form-item label="预处理规则" prop="pre_rule">
+            <el-checkbox-group v-model="uploadForm.pre_rule_list">
+              <el-checkbox label="remove_urls_emails">去除URL链接</el-checkbox>
+              <el-checkbox label="remove_extra_spaces">去除多余空格</el-checkbox>
+            </el-checkbox-group>
           </el-form-item>
-          <el-form-item label="子分段重叠长度" prop="child_overlap">
-            <el-input-number v-model="uploadForm.child_overlap" :min="0" :max="1000" />
+
+          <!-- 分段最大长度 -->
+          <el-form-item label="分段最大长度" prop="max_tokens">
+            <el-input-number v-model="uploadForm.max_tokens" :min="1" :max="10000" />
           </el-form-item>
-          <el-form-item label="子分段最大长度" prop="child_max_tokens">
-            <el-input-number v-model="uploadForm.child_max_tokens" :min="1" :max="10000" />
+
+          <!-- 分段重叠长度 -->
+          <el-form-item label="分段重叠长度" prop="overlap">
+            <el-input-number v-model="uploadForm.overlap" :min="0" :max="1000" />
           </el-form-item>
+
+          <!-- 分段分隔符 -->
+          <el-form-item label="分段分隔符" prop="delimiter">
+            <el-input v-model="uploadForm.delimiter" placeholder="如 \n\n" />
+          </el-form-item>
+
+          <!-- 以下字段仅在「父子分段」时显示 -->
+          <template v-if="uploadForm.segment_mode === 'hierarchical_model'">
+            <el-divider>父子分段配置</el-divider>
+            <el-form-item label="父分段规则" prop="parent_mode">
+              <el-select v-model="uploadForm.parent_mode" placeholder="请选择父分段规则" style="width: 100%">
+                <el-option label="全文" value="full-doc" />
+                <el-option label="段落" value="paragraph" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="子分段分隔符" prop="child_delimiter">
+              <el-input v-model="uploadForm.child_delimiter" placeholder="如 \n" />
+            </el-form-item>
+            <el-form-item label="子分段重叠长度" prop="child_overlap">
+              <el-input-number v-model="uploadForm.child_overlap" :min="0" :max="1000" />
+            </el-form-item>
+            <el-form-item label="子分段最大长度" prop="child_max_tokens">
+              <el-input-number v-model="uploadForm.child_max_tokens" :min="1" :max="10000" />
+            </el-form-item>
+          </template>
         </template>
       </el-form>
       <template #footer>
@@ -199,7 +208,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Search, Upload, Delete, List } from '@element-plus/icons-vue'
 import { getKnowledgeFileList, uploadFile, createKnowledgeFile, deleteKnowledgeFile } from '../../api'
@@ -228,6 +237,7 @@ const fileList = ref([])
 
 const uploadForm = reactive({
   file: null,
+  enable_semantic: false,
   segment_mode: 'text_model',
   pre_rule_list: [],
   max_tokens: 500,
@@ -239,14 +249,22 @@ const uploadForm = reactive({
   child_max_tokens: 200,
 })
 
-const uploadRules = {
-  file: [{ required: true, message: '请选择文件', trigger: 'change' }],
-  segment_mode: [{ required: true, message: '请选择分段模式', trigger: 'change' }],
-  max_tokens: [{ required: true, message: '请输入分段最大长度', trigger: 'blur' }],
-  overlap: [{ required: true, message: '请输入分段重叠长度', trigger: 'blur' }],
-  delimiter: [{ required: true, message: '请输入分段分隔符', trigger: 'blur' }],
-  parent_mode: [{ required: true, message: '请选择父分段规则', trigger: 'change' }],
-}
+// 校验规则动态化：开启智能分段时只校验文件，分段规则字段被 v-if 移除不参与校验
+const uploadRules = computed(() => {
+  if (uploadForm.enable_semantic) {
+    return {
+      file: [{ required: true, message: '请选择文件', trigger: 'change' }],
+    }
+  }
+  return {
+    file: [{ required: true, message: '请选择文件', trigger: 'change' }],
+    segment_mode: [{ required: true, message: '请选择分段模式', trigger: 'change' }],
+    max_tokens: [{ required: true, message: '请输入分段最大长度', trigger: 'blur' }],
+    overlap: [{ required: true, message: '请输入分段重叠长度', trigger: 'blur' }],
+    delimiter: [{ required: true, message: '请输入分段分隔符', trigger: 'blur' }],
+    parent_mode: [{ required: true, message: '请选择父分段规则', trigger: 'change' }],
+  }
+})
 
 // ---------- Methods ----------
 async function fetchList() {
@@ -330,6 +348,7 @@ function resetUploadForm() {
   fileList.value = []
   uploadedFileKey.value = ''
   fileUploading.value = false
+  uploadForm.enable_semantic = false
   uploadForm.segment_mode = 'text_model'
   uploadForm.pre_rule_list = []
   uploadForm.max_tokens = 500
@@ -352,25 +371,28 @@ async function handleUpload() {
 
   uploading.value = true
   try {
-    // 1. 拼接 pre_rule（多选用分号分隔）
-    const preRule = uploadForm.pre_rule_list.join(';')
-
-    // 2. 创建文件记录，触发解析（使用已经上传 OSS 返回的 file_key）
-    const isHierarchical = uploadForm.segment_mode === 'hierarchical_model'
-    await createKnowledgeFile({
+    // 1. 组装请求体：开启智能分段时传 semantic_model，规则字段省略由后端默认值兜底落 ProcessRule
+    const payload = {
       dataset_id: knowledgeId,
       file_key: uploadedFileKey.value,
-      enable_semantic: false,
-      segment_mode: uploadForm.segment_mode,
-      pre_rule: preRule,
-      max_tokens: uploadForm.max_tokens,
-      overlap: uploadForm.overlap,
-      delimiter: uploadForm.delimiter,
-      parent_mode: isHierarchical ? uploadForm.parent_mode : null,
-      child_delimiter: isHierarchical ? uploadForm.child_delimiter : null,
-      child_overlap: isHierarchical ? uploadForm.child_overlap : null,
-      child_max_tokens: isHierarchical ? uploadForm.child_max_tokens : null,
-    })
+      enable_semantic: uploadForm.enable_semantic,
+      segment_mode: uploadForm.enable_semantic ? 'semantic_model' : uploadForm.segment_mode,
+    }
+    if (!uploadForm.enable_semantic) {
+      // 拼接 pre_rule（多选用分号分隔）
+      payload.pre_rule = uploadForm.pre_rule_list.join(';')
+      payload.max_tokens = uploadForm.max_tokens
+      payload.overlap = uploadForm.overlap
+      payload.delimiter = uploadForm.delimiter
+      const isHierarchical = uploadForm.segment_mode === 'hierarchical_model'
+      payload.parent_mode = isHierarchical ? uploadForm.parent_mode : null
+      payload.child_delimiter = isHierarchical ? uploadForm.child_delimiter : null
+      payload.child_overlap = isHierarchical ? uploadForm.child_overlap : null
+      payload.child_max_tokens = isHierarchical ? uploadForm.child_max_tokens : null
+    }
+
+    // 2. 创建文件记录，触发解析（使用已经上传 OSS 返回的 file_key）
+    await createKnowledgeFile(payload)
 
     // 3. 成功提示并刷新列表
     ElMessage.success('文件上传成功，正在解析中...')
@@ -484,5 +506,11 @@ onMounted(fetchList)
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.semantic-tip {
+  margin-left: 12px;
+  color: #909399;
+  font-size: 12px;
 }
 </style>

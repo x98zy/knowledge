@@ -5,6 +5,7 @@ from core.index_processor.index_processor_base import BaseIndexProcessor
 from core.index_processor.processor.paragraph_index_processor import ParagraphIndexProcessor
 from core.index_processor.processor.parent_child_index_processor import ParentChildIndexProcessor
 from core.index_processor.processor.qa_index_processor import QAIndexProcessor
+from core.index_processor.processor.structured_processor import StructuredProcessor
 
 
 class IndexProcessorFactory:
@@ -16,10 +17,10 @@ class IndexProcessorFactory:
     def init_index_processor(self) -> BaseIndexProcessor:
         """Init index processor."""
 
-        if not self._index_type:
-            raise ValueError("Index type must be specified.")
+        if self._index_type == IndexType.AUTOMATIC_INDEX:
+            return StructuredProcessor()
 
-        if self._index_type == IndexType.PARAGRAPH_INDEX:
+        elif self._index_type == IndexType.PARAGRAPH_INDEX:
             return ParagraphIndexProcessor()
         elif self._index_type == IndexType.QA_INDEX:
             return QAIndexProcessor()
