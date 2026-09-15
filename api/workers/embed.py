@@ -1,10 +1,10 @@
 from faststream.middlewares import AckPolicy
 from sqlalchemy import case, func, select, update
 
-from common.const import EMBED_ERROR_CACHE
+from common.const import EMBED_ERROR_CACHE, EMBED_RETRY_CACHE
 from common.entites import Document
 from common.enum import FileStatus, SegmentStatus
-from common.retry import is_retryable
+from common.retry import RetryLimitExceeded, clear_retry_attempt, incr_retry_attempt, is_retryable
 from config.settings import settings
 from core.index_processor.constant.index_type import IndexType
 from core.index_processor.index_processor_factory import IndexProcessorFactory
@@ -149,7 +149,9 @@ async def check_file_and_update(kb_file_id: str):
     # 更新文件状态为成功
     if success_count and segment_count and success_count == segment_count:
         smt = (
-            update(KbFile).filter(KbFile.id == kb_file_id, KbFile.deleted == 0).values(status=FileStatus.SUCCESS.value)
+            update(KbFile)
+            .filter(KbFile.id == kb_file_id, KbFile.deleted == 0)
+            .values(status=FileStatus.SUCCESS.value, failed_reason=None)
         )
         await db.session.execute(smt)
         await db.session.commit()
@@ -217,6 +219,7 @@ async def clean_batch_data(docs: list[Document], kb_id: str):
     ack_policy=AckPolicy.NACK_ON_ERROR,
 )
 async def embed(message: EmbedMessage):
+    retry_key = EMBED_RETRY_CACHE.format(batch_id=message.batch_id)
     try:
         error_key = EMBED_ERROR_CACHE.format(batch_id=message.batch_id)
         if await redis_client.get(error_key):
@@ -258,10 +261,26 @@ async def embed(message: EmbedMessage):
         if process_rule.segment_mode == IndexType.PARENT_CHILD_INDEX.value:
             await update_parent_segment_status(message.kb_file_id)
         await check_file_and_update(message.kb_file_id)
+        await clear_retry_attempt(retry_key)
     except Exception as e:
         if is_retryable(e):
             # 瞬时错误（网络抖动/超时/429/5xx/连接失败）：文件保留 PROCESSING 状态，
             # 写批次清理标记后原样抛出（保留异常类型），由 NACK_ON_ERROR 触发 Kafka 重投
+            try:
+                await incr_retry_attempt(retry_key, settings.BROKER_MAX_RETRY, settings.BROKER_RETRY_KEY_TTL)
+            except RetryLimitExceeded as retry_ex:
+                logger.warning(
+                    f"embed worker 重试次数超过限制，触发文件失败 kb_file_id={message.kb_file_id} err={e}",
+                    exc_info=retry_ex,
+                )
+                await clear_retry_attempt(retry_key)
+                smt = (
+                    update(KbFile)
+                    .filter(KbFile.id == message.kb_file_id, KbFile.deleted == 0)
+                    .values(status=FileStatus.FAILED.value, failed_reason=str(e)[0:500])
+                )
+                await db.session.execute(smt)
+                await db.session.commit()
             logger.warning(
                 f"embed worker 发生瞬时错误，触发 Kafka 重试 kb_file_id={message.kb_file_id} err={e}",
                 exc_info=e,

@@ -159,3 +159,47 @@ def is_retryable(exc: BaseException | None, max_depth: int = 5) -> bool:
             return True
         current = current.__cause__ or current.__context__
     return False
+
+
+class RetryLimitExceeded(Exception):
+    """瞬时错误重试次数已达上限。"""
+
+    def __init__(self, attempt: int, max_retry: int) -> None:
+        self.attempt = attempt
+        self.max_retry = max_retry
+        super().__init__(f"瞬时错误已重试 {attempt} 次，超过上限 {max_retry} 次，放弃重试")
+
+
+async def incr_retry_attempt(retry_key: str, max_retry: int, ttl: int) -> int:
+    """在 Redis 上对消息的重试次数做原子递增并刷新 TTL。
+
+    计数必须放 Redis 而非进程内存：NACK 重投的消息可能被同组其他消费者实例
+    拿到，且 rebalance / 进程重启会清空内存计数，导致重试上限失效。
+
+    Args:
+        retry_key: 以消息唯一标识（如 batch_id）拼出的计数 key。
+        max_retry: 最大重试次数；递增后的次数超过它时抛 RetryLimitExceeded。
+        ttl: 计数 key 的 TTL（秒），需大于最坏重试窗口，避免消息积压期间计数被重置。
+
+    Returns:
+        本次失败后的重试序号（首次失败返回 1）。
+
+    Raises:
+        RetryLimitExceeded: 重试次数超过 max_retry（调用方应落失败终态并 ACK）。
+    """
+    # 延迟导入：common 层避免在模块加载期强依赖 Redis 连接
+    from extensions.ext_redis import redis_client
+
+    attempt = await redis_client.incr(retry_key)
+    # 每次失败都刷新 TTL：只要重试还在窗口内持续进行，计数就不过期
+    await redis_client.expire(retry_key, ttl)
+    if attempt > max_retry:
+        raise RetryLimitExceeded(attempt=attempt, max_retry=max_retry)
+    return attempt
+
+
+async def clear_retry_attempt(retry_key: str) -> None:
+    """消息最终处理成功后清理重试计数。"""
+    from extensions.ext_redis import redis_client
+
+    await redis_client.delete(retry_key)

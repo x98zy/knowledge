@@ -4,10 +4,10 @@ from faststream.middlewares import AckPolicy
 from sqlalchemy import select, update
 from uuid_extensions import uuid7
 
-from common.const import EXTRACT_ERROR_CACHE
+from common.const import EXTRACT_ERROR_CACHE, EXTRACT_RETRY_CACHE
 from common.entites import ExtractSetting, UploadFile
 from common.enum import FileStatus
-from common.retry import is_retryable
+from common.retry import RetryLimitExceeded, clear_retry_attempt, incr_retry_attempt, is_retryable
 from config.settings import settings
 from core.index_processor.index_processor_factory import IndexProcessorFactory
 from core.vectordb.factory import VectorFactory
@@ -169,13 +169,39 @@ async def extract(message: ExtracMessage):
         logger.info(
             f"Extracted and transformed {len(tranform_documents)} documents for kb_file_id: {message.kb_file_id}"
         )
+        # 处理成功（含重试后成功）：清理历史重试计数
+        await clear_retry_attempt(EXTRACT_RETRY_CACHE.format(batch_id=message.batch_id))
     except Exception as e:
         await db.session.rollback()
+        retry_key = EXTRACT_RETRY_CACHE.format(batch_id=message.batch_id)
         if is_retryable(e):
-            # 瞬时错误（网络抖动/超时/429/5xx/连接失败）：文件保留 PROCESSING 状态，
-            # 写批次清理标记后原样抛出（保留异常类型），由 NACK_ON_ERROR 触发 Kafka 重投
+            # 瞬时错误（网络抖动/超时/429/5xx/连接失败）：计数 +1，未超上限则原样抛出由 NACK 重投
+            try:
+                attempt = await incr_retry_attempt(
+                    retry_key, settings.BROKER_MAX_RETRY, settings.BROKER_RETRY_KEY_TTL
+                )
+            except RetryLimitExceeded:
+                # 重试耗尽：文件保留/落为 FAILED 终态，消息正常 ACK 结束，不再重投
+                await clear_retry_attempt(retry_key)
+                logger.exception(
+                    f"extract worker 瞬时错误重试已达上限({settings.BROKER_MAX_RETRY}次)，放弃: {message}"
+                )
+                smt = (
+                    update(KbFile)
+                    .where(KbFile.id == message.kb_file_id, KbFile.deleted == 0)
+                    .values(
+                        status=FileStatus.FAILED.value,
+                        failed_reason=f"文件解析失败，重试{settings.BROKER_MAX_RETRY}次后仍失败: {str(e)[:300]}",
+                    )
+                )
+                await db.session.execute(smt)
+                await db.session.commit()
+                return
+
+            # 文件保留 PROCESSING 状态，写批次清理标记后原样抛出（保留异常类型），由 NACK_ON_ERROR 重投
             logger.warning(
-                f"extract worker 发生瞬时错误，触发 Kafka 重试 kb_file_id={message.kb_file_id} err={e}",
+                f"extract worker 发生瞬时错误，第 {attempt}/{settings.BROKER_MAX_RETRY} 次重试 "
+                f"kb_file_id={message.kb_file_id} err={e}",
                 exc_info=e,
             )
             error_key = EXTRACT_ERROR_CACHE.format(batch_id=message.batch_id)
@@ -184,6 +210,7 @@ async def extract(message: ExtracMessage):
 
         # 永久错误（文件损坏/格式不支持/参数非法/NotImplemented 等）：标记 FAILED 终态后正常返回，
         # FastStream 收到正常返回即 ACK，消息不再重投，避免毒消息无限循环与重复计费
+        await clear_retry_attempt(retry_key)
         logger.exception(f"extract worker 发生永久错误，消息直接确认不重试: {message}")
         smt = (
             update(KbFile)

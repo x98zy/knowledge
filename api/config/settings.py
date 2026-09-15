@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     BROKER_SESSION_TIMEOUT_MS: int = Field(default=60000, description="Kafka 消费者会话超时(毫秒)")
     BROKER_HEARTBEAT_INTERVAL_MS: int = Field(default=10000, description="Kafka 消费者心跳间隔(毫秒)，需小于会话超时的1/3")
     BROKER_MAX_POLL_INTERVAL_MS: int = Field(default=900000, description="Kafka 两次 poll 最大间隔(毫秒)，需大于单条消息最长处理耗时")
+    BROKER_MAX_RETRY: int = Field(default=3, description="消息消费发生瞬时错误时的最大重试次数，超过后落失败终态并ACK")
+    BROKER_RETRY_KEY_TTL: int = Field(default=86400, description="重试计数key的TTL(秒)，需大于最坏情况下的重试窗口，防止积压期间计数被重置")
     EXTRACTOR_TOPIC: str = Field(default="extract", description="提取器消息队列主题")
     EXTRACT_MAX_WORKERS: int = Field(default=5, description="提取器最大工作线程数")
 
