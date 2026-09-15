@@ -1,12 +1,16 @@
+from faststream.middlewares import AckPolicy
 from sqlalchemy import case, func, select, update
 
+from common.const import EMBED_ERROR_CACHE
 from common.entites import Document
 from common.enum import FileStatus, SegmentStatus
 from config.settings import settings
 from core.index_processor.constant.index_type import IndexType
 from core.index_processor.index_processor_factory import IndexProcessorFactory
+from core.vectordb.factory import VectorFactory
 from extensions.ext_db import db
 from extensions.ext_log import logger
+from extensions.ext_redis import redis_client
 from models.dataset import Dataset, ProcessRule
 from models.document import ChildSegment, FileSegments, KbFile
 
@@ -150,6 +154,55 @@ async def check_file_and_update(kb_file_id: str):
         await db.session.commit()
 
 
+async def clean_batch_data(docs: list[Document], kb_id: str):
+    logger.warning(f"知识库 kb_id={kb_id} 向量化存在失败，触发kafka重试")
+    query = select(Dataset).filter(Dataset.id == kb_id, Dataset.deleted == 0)
+    dataset = await db.session.execute(query)
+    dataset = dataset.scalars().first()
+    if not dataset:
+        logger.warning(f"Dataset with id {kb_id} not found.")
+        return
+    ids = []
+    for doc in docs:
+        if doc.id:
+            ids.append(doc.id)
+        if doc.children:
+            for child_doc in doc.children:
+                if child_doc.id:
+                    ids.append(child_doc.id)
+    segments_query = (
+        select(FileSegments)
+        .filter(FileSegments.id.in_(ids), FileSegments.deleted == 0)
+        .with_only_columns(FileSegments.point_id)
+    )
+    point_ids = await db.session.execute(segments_query)
+    point_ids = point_ids.scalars().all()
+
+    child_segments_query = (
+        select(ChildSegment)
+        .filter(ChildSegment.id.in_(ids), ChildSegment.deleted == 0)
+        .with_only_columns(ChildSegment.point_id)
+    )
+    child_point_ids = await db.session.execute(child_segments_query)
+    child_point_ids = child_point_ids.scalars().all()
+
+    point_ids = list(filter(lambda x: x is not None, point_ids))
+    child_point_ids = list(filter(lambda x: x is not None, child_point_ids))
+    point_ids.extend(child_point_ids)
+    if point_ids:
+        vector_factory = VectorFactory(dataset)
+        await vector_factory.delete_by_ids(point_ids)
+    stmt = (
+        update(FileSegments).where(FileSegments.id.in_(ids)).values(status=SegmentStatus.WAITING.value, point_id=None)
+    )
+    await db.session.execute(stmt)
+    stmt = (
+        update(ChildSegment).where(ChildSegment.id.in_(ids)).values(status=SegmentStatus.WAITING.value, point_id=None)
+    )
+    await db.session.execute(stmt)
+    await db.session.commit()
+
+
 @broker.subscriber(
     settings.EMBED_TOPIC,
     group_id=settings.BROKER_GROUP_ID,
@@ -160,9 +213,14 @@ async def check_file_and_update(kb_file_id: str):
     session_timeout_ms=settings.BROKER_SESSION_TIMEOUT_MS,
     heartbeat_interval_ms=settings.BROKER_HEARTBEAT_INTERVAL_MS,
     max_poll_interval_ms=settings.BROKER_MAX_POLL_INTERVAL_MS,
+    ack_policy=AckPolicy.NACK_ON_ERROR,
 )
 async def embed(message: EmbedMessage):
     try:
+        error_key = EMBED_ERROR_CACHE.format(batch_id=message.batch_id)
+        if await redis_client.get(error_key):
+            await clean_batch_data(message.documents, message.kb_id)
+            await redis_client.delete(error_key)
         dataset_query = select(Dataset).filter(Dataset.id == message.kb_id, Dataset.deleted == 0)
         dataset = await db.session.execute(dataset_query)
         dataset = dataset.scalars().first()
@@ -211,5 +269,8 @@ async def embed(message: EmbedMessage):
         )
         await db.session.execute(smt)
         await db.session.commit()
+        error_key = EMBED_ERROR_CACHE.format(batch_id=message.batch_id)
+        await redis_client.set(error_key, 1, ex=600)
+        raise RuntimeError("分段向量化失败") from e
     finally:
         await db.session.close()

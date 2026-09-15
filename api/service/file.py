@@ -240,7 +240,7 @@ class FileService:
             if settings.START_BROKER_OUTBOX:
                 outbox_record = OutboxMessage(
                     topic=settings.EXTRACTOR_TOPIC,
-                    payload=ExtracMessage(kb_file_id=kb_file_id, metadata={}).model_dump(),
+                    payload=ExtracMessage(kb_file_id=kb_file_id, metadata={}, batch_id=str(uuid7())).model_dump(),
                     created_by_id=user.id,
                     updated_by_id=user.id,
                     created_by=user.username,
@@ -250,7 +250,7 @@ class FileService:
             await db.session.commit()
             await send_broker_message(
                 topic=settings.EXTRACTOR_TOPIC,
-                message=ExtracMessage(kb_file_id=kb_file_id, metadata={}).model_dump(),
+                message=ExtracMessage(kb_file_id=kb_file_id, metadata={}, batch_id=str(uuid7())).model_dump(),
             )
             return True
         except Exception as e:

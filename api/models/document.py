@@ -41,6 +41,7 @@ class FileSegments(BaseModel):
     point_id: Mapped[str] = Column(String(255), nullable=True, comment="向量库id")
     status: Mapped[str] = Column(String(50), nullable=False, comment="片段处理状态", default="waiting")
     position: Mapped[int] = Column(BigInteger, nullable=False, comment="分段索引")
+    batch_id: Mapped[str] = Column(String(255), nullable=True, comment="批次ID, 可以用于追踪同一批次的文件处理")
 
 
 class ChildSegment(BaseModel):
@@ -54,6 +55,7 @@ class ChildSegment(BaseModel):
     point_id: Mapped[str] = Column(String(255), nullable=True, comment="向量库id")
     status: Mapped[str] = Column(String(50), nullable=False, comment="片段处理状态", default="waiting")
     position: Mapped[int] = Column(BigInteger, nullable=False, comment="分段索引")
+    batch_id: Mapped[str] = Column(String(255), nullable=True, comment="批次ID, 可以用于追踪同一批次的文件处理")
 
 
 class UploadFile(BaseModel):
