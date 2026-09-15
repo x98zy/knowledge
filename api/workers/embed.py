@@ -4,6 +4,7 @@ from sqlalchemy import case, func, select, update
 from common.const import EMBED_ERROR_CACHE
 from common.entites import Document
 from common.enum import FileStatus, SegmentStatus
+from common.retry import is_retryable
 from config.settings import settings
 from core.index_processor.constant.index_type import IndexType
 from core.index_processor.index_processor_factory import IndexProcessorFactory
@@ -258,6 +259,16 @@ async def embed(message: EmbedMessage):
             await update_parent_segment_status(message.kb_file_id)
         await check_file_and_update(message.kb_file_id)
     except Exception as e:
+        if is_retryable(e):
+            # 瞬时错误（网络抖动/超时/429/5xx/连接失败）：文件保留 PROCESSING 状态，
+            # 写批次清理标记后原样抛出（保留异常类型），由 NACK_ON_ERROR 触发 Kafka 重投
+            logger.warning(
+                f"embed worker 发生瞬时错误，触发 Kafka 重试 kb_file_id={message.kb_file_id} err={e}",
+                exc_info=e,
+            )
+            error_key = EMBED_ERROR_CACHE.format(batch_id=message.batch_id)
+            await redis_client.set(error_key, 1, ex=600)
+            raise
         await db.session.rollback()
         # 更新分段状态为失败
         await update_segments_error(message.documents)
@@ -269,8 +280,5 @@ async def embed(message: EmbedMessage):
         )
         await db.session.execute(smt)
         await db.session.commit()
-        error_key = EMBED_ERROR_CACHE.format(batch_id=message.batch_id)
-        await redis_client.set(error_key, 1, ex=600)
-        raise RuntimeError("分段向量化失败") from e
     finally:
         await db.session.close()

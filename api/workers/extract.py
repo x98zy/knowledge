@@ -7,6 +7,7 @@ from uuid_extensions import uuid7
 from common.const import EXTRACT_ERROR_CACHE
 from common.entites import ExtractSetting, UploadFile
 from common.enum import FileStatus
+from common.retry import is_retryable
 from config.settings import settings
 from core.index_processor.index_processor_factory import IndexProcessorFactory
 from core.vectordb.factory import VectorFactory
@@ -170,6 +171,20 @@ async def extract(message: ExtracMessage):
         )
     except Exception as e:
         await db.session.rollback()
+        if is_retryable(e):
+            # 瞬时错误（网络抖动/超时/429/5xx/连接失败）：文件保留 PROCESSING 状态，
+            # 写批次清理标记后原样抛出（保留异常类型），由 NACK_ON_ERROR 触发 Kafka 重投
+            logger.warning(
+                f"extract worker 发生瞬时错误，触发 Kafka 重试 kb_file_id={message.kb_file_id} err={e}",
+                exc_info=e,
+            )
+            error_key = EXTRACT_ERROR_CACHE.format(batch_id=message.batch_id)
+            await redis_client.set(error_key, 1, ex=600)
+            raise
+
+        # 永久错误（文件损坏/格式不支持/参数非法/NotImplemented 等）：标记 FAILED 终态后正常返回，
+        # FastStream 收到正常返回即 ACK，消息不再重投，避免毒消息无限循环与重复计费
+        logger.exception(f"extract worker 发生永久错误，消息直接确认不重试: {message}")
         smt = (
             update(KbFile)
             .where(KbFile.id == message.kb_file_id, KbFile.deleted == 0)
@@ -177,9 +192,6 @@ async def extract(message: ExtracMessage):
         )
         await db.session.execute(smt)
         await db.session.commit()
-        logger.exception(f"Error processing message: {message}. Error: {e}")
-        error_key = EXTRACT_ERROR_CACHE.format(batch_id=message.batch_id)
-        await redis_client.set(error_key, 1, ex=600)
-        raise RuntimeError("文件解析失败") from e
+        return
     finally:
         await db.session.close()
