@@ -44,6 +44,18 @@ async def get_embedding_models():
     )
 
 
+@knowledge_router.get("/get_rerank_models", summary="获取重排模型列表")
+async def get_rerank_models():
+    """获取重排模型列表接口，供检索测试弹窗选择"""
+    rerank_models = await KnowledgeService.get_rerank_models()
+    return SuccessResponse(
+        message="获取重排模型列表成功",
+        data=EmbeddingListResponse(
+            models=[EmbeddingModel(model=model.name, provider=model.provider) for model in rerank_models]
+        ),
+    )
+
+
 @knowledge_router.post("/create", summary="创建知识库")
 async def create_knowledge(
     req: CreateDatasetRequest = Body(...), current_user: CurrentUser = Depends(get_current_user)

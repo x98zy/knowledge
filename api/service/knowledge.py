@@ -131,6 +131,11 @@ class KnowledgeService:
         return all_models
 
     @classmethod
+    async def get_rerank_models(cls) -> list[ModelConfig]:
+        """获取重排模型列表"""
+        return [model for model in settings.MODELS if model.type == ModelType.RERRANK]
+
+    @classmethod
     async def upload_file(cls, file: UploadFile, user_id: str) -> UploadFileModel:
         suffix = os.path.splitext(file.filename)[-1] if file.filename and "." in file.filename else ""
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:

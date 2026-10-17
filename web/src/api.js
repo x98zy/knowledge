@@ -95,6 +95,29 @@ export async function getEmbeddingModels() {
   return res.data
 }
 
+export async function getRerankModels() {
+  const res = await api.get('/knowledge/get_rerank_models')
+  return res.data
+}
+
+/**
+ * 知识库检索测试。
+ * @param {string} method 检索方式: 'vector' | 'full-text' | 'hybrid'，对应后端 /search/xxx 三个接口
+ * @param {{query: string, top_k: number, score: number, dataset_ids: string[], query_filter?: object, rerank_model?: string|null, rerank_model_provider?: string|null}} payload
+ */
+export async function searchKnowledge(method, payload) {
+  const endpointMap = {
+    vector: '/search/vector',
+    'full-text': '/search/full-text',
+    hybrid: '/search/hybrid',
+  }
+  const url = endpointMap[method]
+  if (!url) throw new Error(`未知检索方式: ${method}`)
+  const res = await api.post(url, payload)
+  // SuccessResponse 包装：res.data = { success, code, message, data: SearchDocument[] }
+  return Array.isArray(res.data?.data) ? res.data.data : []
+}
+
 export async function getKnowledgeDetail(knowledgeId) {
   const res = await api.get(`/knowledge/${knowledgeId}/detail`)
   return res.data

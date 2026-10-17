@@ -12,10 +12,16 @@
         <h2>文件列表</h2>
         <p class="header-desc">知识库「{{ knowledgeId }}」的文件管理</p>
       </div>
-      <el-button type="primary" @click="showUploadDialog = true">
-        <el-icon><Upload /></el-icon>
-        上传知识文件
-      </el-button>
+      <div class="header-actions">
+        <el-button type="success" @click="openSearchDialog">
+          <el-icon><Search /></el-icon>
+          检索
+        </el-button>
+        <el-button type="primary" @click="showUploadDialog = true">
+          <el-icon><Upload /></el-icon>
+          上传知识文件
+        </el-button>
+      </div>
     </div>
 
     <!-- 搜索 -->
@@ -204,6 +210,91 @@
         <el-button type="primary" :loading="uploading" @click="handleUpload">确定上传</el-button>
       </template>
     </el-dialog>
+
+    <!-- 检索测试对话框 -->
+    <el-dialog
+      v-model="showSearchDialog"
+      title="检索测试"
+      width="720px"
+      :close-on-click-modal="false"
+      top="6vh"
+    >
+      <el-form :model="searchForm" label-width="100px" label-position="left">
+        <el-form-item label="检索语句">
+          <el-input
+            v-model="searchForm.query"
+            type="textarea"
+            :rows="3"
+            placeholder="输入要检索的 query"
+          />
+        </el-form-item>
+        <el-form-item label="检索方式">
+          <el-radio-group v-model="searchForm.method">
+            <el-radio-button value="vector">向量检索</el-radio-button>
+            <el-radio-button value="full-text">全文检索</el-radio-button>
+            <el-radio-button value="hybrid">混合检索</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="Top K">
+          <el-input-number v-model="searchForm.top_k" :min="1" :max="50" />
+        </el-form-item>
+        <el-form-item label="分数阈值">
+          <el-input-number
+            v-model="searchForm.score"
+            :min="0"
+            :max="1"
+            :step="0.05"
+            :precision="2"
+          />
+          <span class="search-tip">向量/混合检索为余弦相似度（0~1）；全文检索为 BM25 原始分，可填 0 不过滤</span>
+        </el-form-item>
+        <el-form-item label="重排模型">
+          <el-select v-model="searchForm.rerankKey" placeholder="不使用重排" clearable style="width: 320px">
+            <el-option
+              v-for="m in rerankModelOptions"
+              :key="`${m.provider}:${m.model}`"
+              :label="`${m.model} (${m.provider})`"
+              :value="`${m.provider}:${m.model}`"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+
+      <!-- 检索结果 -->
+      <div v-if="searchResults !== null" class="search-result">
+        <el-divider content-position="left">
+          检索结果（{{ searchResults.length }} 条）
+        </el-divider>
+        <el-empty v-if="searchResults.length === 0" description="未检索到分段，可适当降低分数阈值" :image-size="80" />
+        <div v-else class="search-result-list">
+          <div v-for="(doc, idx) in searchResults" :key="doc.id || idx" class="result-card">
+            <div class="result-card-header">
+              <span class="result-index">{{ idx + 1 }}</span>
+              <el-tag size="small" type="success">score: {{ formatScore(doc.score) }}</el-tag>
+              <el-tag v-if="doc.rerank_score != null" size="small" type="warning">
+                rerank: {{ formatScore(doc.rerank_score) }}
+              </el-tag>
+            </div>
+            <div class="result-content">{{ doc.page_content }}</div>
+            <div v-if="doc.metadata && Object.keys(doc.metadata).length" class="result-meta">
+              <el-tag
+                v-for="(val, key) in doc.metadata"
+                :key="key"
+                size="small"
+                type="info"
+                effect="plain"
+                class="meta-tag"
+              >{{ key }}: {{ val }}</el-tag>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="showSearchDialog = false">关闭</el-button>
+        <el-button type="primary" :loading="searching" @click="handleSearchTest">开始检索</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -211,7 +302,10 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Search, Upload, Delete, List } from '@element-plus/icons-vue'
-import { getKnowledgeFileList, uploadFile, createKnowledgeFile, deleteKnowledgeFile } from '../../api'
+import {
+  getKnowledgeFileList, uploadFile, createKnowledgeFile, deleteKnowledgeFile,
+  searchKnowledge, getRerankModels,
+} from '../../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
@@ -266,6 +360,19 @@ const uploadRules = computed(() => {
   }
 })
 
+// ---------- Search test state ----------
+const showSearchDialog = ref(false)
+const searching = ref(false)
+const searchResults = ref(null)
+const rerankModelOptions = ref([])
+const searchForm = reactive({
+  query: '',
+  method: 'vector',
+  top_k: 5,
+  score: 0.5,
+  rerankKey: '',
+})
+
 // ---------- Methods ----------
 async function fetchList() {
   loading.value = true
@@ -305,6 +412,60 @@ function goSegmentDetail(row) {
     params: { fileId: row.id },
     query: { knowledge_id: knowledgeId, file_name: row.file_name },
   })
+}
+
+// ---------- Search test handlers ----------
+async function openSearchDialog() {
+  showSearchDialog.value = true
+  // 首次打开才拉取重排模型列表，避免每次点击都打接口
+  if (rerankModelOptions.value.length === 0) {
+    try {
+      const res = await getRerankModels()
+      rerankModelOptions.value = res.data?.models || []
+    } catch {
+      rerankModelOptions.value = []
+    }
+  }
+}
+
+function formatScore(value) {
+  if (value == null) return '-'
+  return Number(value).toFixed(4)
+}
+
+async function handleSearchTest() {
+  const query = searchForm.query.trim()
+  if (!query) {
+    ElMessage.warning('请输入检索语句')
+    return
+  }
+
+  // 解析重排模型选择："provider:model" → 两个字段；未选择则不传
+  let rerankModel = null
+  let rerankModelProvider = null
+  if (searchForm.rerankKey) {
+    const sepIndex = searchForm.rerankKey.indexOf(':')
+    rerankModelProvider = searchForm.rerankKey.slice(0, sepIndex)
+    rerankModel = searchForm.rerankKey.slice(sepIndex + 1)
+  }
+
+  searching.value = true
+  try {
+    searchResults.value = await searchKnowledge(searchForm.method, {
+      query,
+      top_k: searchForm.top_k,
+      score: searchForm.score,
+      dataset_ids: [knowledgeId],
+      query_filter: {},
+      rerank_model: rerankModel,
+      rerank_model_provider: rerankModelProvider,
+    })
+  } catch (e) {
+    searchResults.value = null
+    ElMessage.error(e.response?.data?.message || '检索失败，请稍后重试')
+  } finally {
+    searching.value = false
+  }
 }
 
 // ---------- Upload handlers ----------
@@ -512,5 +673,73 @@ onMounted(fetchList)
   margin-left: 12px;
   color: #909399;
   font-size: 12px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.search-tip {
+  margin-left: 12px;
+  color: #909399;
+  font-size: 12px;
+}
+
+.search-result {
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.search-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.result-card {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fafafa;
+}
+
+.result-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.result-index {
+  min-width: 22px;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  border-radius: 6px;
+  background: #409eff;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.result-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #303133;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.result-meta {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.meta-tag {
+  max-width: 100%;
 }
 </style>
